@@ -17,26 +17,39 @@ import org.springframework.security.web.header.writers.frameoptions.XFrameOption
 public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // 인증되지 않은 페이지들의 요청을 모두 허용
         http
-                .authorizeHttpRequests((authorizeHttpRequests) -> authorizeHttpRequests
-                        .requestMatchers(new AntPathRequestMatcher("/**")).permitAll())
-                .csrf((csrf) -> csrf
-                        .ignoringRequestMatchers(new AntPathRequestMatcher("/h2-console/**")))
-                .headers((headers) -> headers
+                // 모든 요청을 허용하도록 설정
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(new AntPathRequestMatcher("/**")).permitAll()
+                )
+                // CSRF 보호에서 h2-console과 mypage 관련 엔드포인트를 제외합니다.
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers(
+                                new AntPathRequestMatcher("/h2-console/**"),
+                                new AntPathRequestMatcher("/user/mypage/**")
+                        )
+                )
+                // H2 콘솔 등 iframe 내에서 보여주기 위한 설정
+                .headers(headers -> headers
                         .addHeaderWriter(new XFrameOptionsHeaderWriter(
-                                XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN)))
-                .formLogin((formLogin) -> formLogin
+                                XFrameOptionsHeaderWriter.XFrameOptionsMode.SAMEORIGIN
+                        ))
+                )
+                // 로그인 페이지와 성공 URL 설정
+                .formLogin(formLogin -> formLogin
                         .loginPage("/user/login")
-                        .defaultSuccessUrl("/"))
-                .logout((logout) -> logout
+                        .defaultSuccessUrl("/user/dashboard")
+                )
+                // 로그아웃 설정
+                .logout(logout -> logout
                         .logoutRequestMatcher(new AntPathRequestMatcher("/user/logout"))
                         .logoutSuccessUrl("/")
-                        .invalidateHttpSession(true))
-        ;
+                        .invalidateHttpSession(true)
+                );
         return http.build();
     }
-    // 비밀번호 암호화
+
+    // 비밀번호 암호화를 위한 BCryptPasswordEncoder 빈 등록
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

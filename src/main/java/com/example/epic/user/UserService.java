@@ -18,23 +18,35 @@ public class UserService {
         SiteUser user = new SiteUser();
         user.setUsername(username);
         user.setEmail(email);
-        // passwordEncoder 객체를 생성하지 않고 빈으로 등록된 객체로부터 주입받아 사용.
+        // Encode the password using the injected PasswordEncoder
         user.setPassword(passwordEncoder.encode(password));
-        this.userRepository.save(user);
-            return user;
+        userRepository.save(user);
+        return user;
     }
 
     public Optional<SiteUser> getByUsername(String username) {
-        Optional<SiteUser> _siteUser = this.userRepository.findByusername(username);
+        Optional<SiteUser> _siteUser = userRepository.findByusername(username);
         if (_siteUser.isEmpty()) {
-            // 이메일과 사용자 이름 모두 없는 경우에 대한 예외 처리
+            // If the username contains '@', treat it as an email
             if (username.contains("@")) {
-                throw new   UsernameNotFoundException("입력한 이메일로 사용자를 찾을 수 없습니다.");
+                throw new UsernameNotFoundException("입력한 이메일로 사용자를 찾을 수 없습니다.");
             } else {
                 throw new UsernameNotFoundException("입력한 사용자 이름으로 사용자를 찾을 수 없습니다.");
             }
         }
-        SiteUser siteUser = _siteUser.get();
-        return Optional.of(siteUser);
+        return _siteUser;
+    }
+
+    public boolean checkPassword(SiteUser user, String rawPassword) {
+        return passwordEncoder.matches(rawPassword, user.getPassword());
+    }
+
+    public void updatePassword(SiteUser user, String newPassword) {
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    public void deleteUser(SiteUser user) {
+        userRepository.delete(user);
     }
 }
