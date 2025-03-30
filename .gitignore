@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Azure 관련 env 변수들
+/src/main/.azure/default/.env
+
+# OpenAI API Key
+src/main/resources/properties/env.properties

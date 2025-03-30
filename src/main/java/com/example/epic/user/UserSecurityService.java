@@ -22,8 +22,8 @@ public class UserSecurityService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
-        Optional<SiteUser> _siteUser = this.userRepository.findByusername(identifier)
-            .or(() -> this.userRepository.findByemail(identifier));
+        Optional<SiteUser> _siteUser = this.userRepository.findByUsername(identifier)
+            .or(() -> this.userRepository.findByEmail(identifier));
         if (_siteUser.isEmpty()) {
             // 이메일과 사용자 이름 모두 없는 경우에 대한 예외 처리
             if (identifier.contains("@")) {
