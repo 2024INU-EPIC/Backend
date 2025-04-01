@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Assessment Demo - WAV Recorder</title>
+</head>
+<body>
+<h1>Assessment Demo (Record WAV)</h1>
+
+<!-- 음성 녹음 제어 버튼 -->
+<div>
+    <button onclick="startRecording()">Start Recording</button>
+    <button onclick="stopRecording()">Stop Recording</button>
+</div>
+
+<!-- Part1 전용: 스크립트 입력 -->
+<div>
+    <label>Reference Text (Part1 only):</label>
+    <input type="text" id="referenceText" style="width:300px;" />
+</div>
+
+<!-- Part 선택 (Part1 / Part5) -->
+<div>
+    <label>Select Part:</label>
+    <select id="partSelect">
+        <option value="part1">Part1 (Has Script)</option>
+        <option value="part5">Part5 (No Script)</option>
+    </select>
+</div>
+
+<!-- 전송 버튼 -->
+<div>
+    <button onclick="submitAssessment()">Submit to Server</button>
+</div>
+
+<!-- 결과 표시 영역 -->
+<pre id="result" style="white-space: pre-wrap; background: #eee; padding: 10px;"></pre>
+
+<script>
+    // === 전역 변수들 ===
+    let audioContext;
+    let input;
+    let scriptNode;
+    let mediaStream;
+    let leftChannelData = [];
+    let recordingLength = 0;
+    let sampleRate = 44100; // 기본 44.1kHz로 가정 (실제 디바이스와 다를 수 있음)
+    let isRecording = false;
+
+    /**
+     * 녹음 시작
+     */
+    async function startRecording() {
+        try {
+            // 마이크 스트림 확보
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioContext = new AudioContext();
+            // 실제 디바이스의 sampleRate를 사용할 수도 있음
+            sampleRate = audioContext.sampleRate;
+
+            // 미디어스트림을 오디오 노드로 연결
+            input = audioContext.createMediaStreamSource(mediaStream);
+
+            // ScriptProcessorNode 생성 (버퍼 크기 예: 4096)
+            scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
+            scriptNode.onaudioprocess = (audioEvent) => {
+                if (!isRecording) return;
+                // 채널 0번의 PCM 데이터 추출
+                const channelData = audioEvent.inputBuffer.getChannelData(0);
+                // 복사해서 leftChannelData에 축적
+                leftChannelData.push(new Float32Array(channelData));
+                recordingLength += channelData.length;
+            };
+
+            // 연결: input -> scriptNode -> (audioContext.destination)
+            input.connect(scriptNode);
+            scriptNode.connect(audioContext.destination);
+
+            // 초기화
+            leftChannelData = [];
+            recordingLength = 0;
+            isRecording = true;
+
+            console.log("Recording started...");
+        } catch (err) {
+            console.error("Error accessing audio stream: ", err);
+        }
+    }
+
+    /**
+     * 녹음 중지
+     */
+    function stopRecording() {
+        if (!isRecording) return;
+        isRecording = false;
+
+        // 연결 종료
+        if (scriptNode) {
+            scriptNode.disconnect();
+            scriptNode.onaudioprocess = null;
+        }
+        if (input) {
+            input.disconnect();
+        }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
+        if (audioContext) {
+            audioContext.close();
+        }
+        console.log("Recording stopped.");
+    }
+
+    /**
+     * Part1 or Part5 평가 요청
+     */
+    function submitAssessment() {
+        if (recordingLength === 0) {
+            alert("No audio recorded yet!");
+            return;
+        }
+
+        // 1) Float32Array 배열을 하나로 합침
+        const buffer = mergeBuffers(leftChannelData, recordingLength);
+        // 2) WAV 인코딩
+        const wavBlob = encodeWAV(buffer, sampleRate);
+
+        // multipart/form-data로 전송
+        const formData = new FormData();
+        const part = document.getElementById("partSelect").value;
+        const referenceText = document.getElementById("referenceText").value;
+
+        // Part1이면 referenceText를 같이 전송
+        if (part === "part1") {
+            formData.append("referenceText", referenceText || "");
+        }
+        // 녹음 WAV 파일
+        formData.append("file", wavBlob, "recorded.wav");
+
+        let url = "/api/v1/part5";
+        if (part === "part1") {
+            url = "/api/v1/part1";
+        }
+
+        fetch(url, {
+            method: "POST",
+            body: formData
+        })
+            .then(response => response.text())
+            .then(data => {
+                // 결과(JSON 문자열)를 화면에 표시
+                document.getElementById("result").textContent = data;
+                console.log("Server response: ", data);
+            })
+            .catch(error => {
+                document.getElementById("result").textContent = "Error: " + error;
+                console.error("Error posting data: ", error);
+            });
+    }
+
+    /**
+     * Float32Array 배열을 하나로 합치기
+     */
+    function mergeBuffers(channelBuffer, recLength) {
+        const result = new Float32Array(recLength);
+        let offset = 0;
+        for (let i = 0; i < channelBuffer.length; i++) {
+            result.set(channelBuffer[i], offset);
+            offset += channelBuffer[i].length;
+        }
+        return result;
+    }
+
+    /**
+     * WAV 포맷으로 인코딩 (단일 채널, 16bit PCM)
+     */
+    function encodeWAV(samples, sampleRate) {
+        // 샘플을 16bit PCM으로 변환
+        const buffer = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(buffer);
+
+        // RIFF 형식의 WAV 헤더 작성
+        // 참고: https://www.musoblog.com/using-web-audio-api-and-wave-files
+        // ChunkID
+        writeString(view, 0, "RIFF");
+        // ChunkSize = 36 + SubChunk2Size
+        view.setUint32(4, 36 + samples.length * 2, true);
+        // Format
+        writeString(view, 8, "WAVE");
+        // Subchunk1ID
+        writeString(view, 12, "fmt ");
+        // Subchunk1Size (16 for PCM)
+        view.setUint32(16, 16, true);
+        // AudioFormat (1 = PCM)
+        view.setUint16(20, 1, true);
+        // NumChannels (1 = mono)
+        view.setUint16(22, 1, true);
+        // SampleRate
+        view.setUint32(24, sampleRate, true);
+        // ByteRate = SampleRate * NumChannels * BitsPerSample/8
+        view.setUint32(28, sampleRate * 1 * 16 / 8, true);
+        // BlockAlign = NumChannels * BitsPerSample/8
+        view.setUint16(32, 1 * 16 / 8, true);
+        // BitsPerSample
+        view.setUint16(34, 16, true);
+        // Subchunk2ID
+        writeString(view, 36, "data");
+        // Subchunk2Size = numSamples * numChannels * bitsPerSample/8
+        view.setUint32(40, samples.length * 2, true);
+
+        // PCM 데이터 (convert float -> 16-bit)
+        let offset = 44;
+        for (let i = 0; i < samples.length; i++) {
+            // 클리핑
+            let s = Math.max(-1, Math.min(1, samples[i]));
+            // scale to 16-bit signed int
+            s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            view.setInt16(offset, s, true);
+            offset += 2;
+        }
+
+        return new Blob([view], { type: "audio/wav" });
+    }
+
+    function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
+</script>
+
+</body>
+</html>
