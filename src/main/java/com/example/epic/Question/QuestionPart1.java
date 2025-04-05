@@ -12,6 +12,8 @@ public class QuestionPart1 {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter
+    @Setter
     @Column(name = "question_part1_id")
     private Long questionPart1Id;
 
@@ -25,13 +27,9 @@ public class QuestionPart1 {
     @Column(name = "question_2", nullable = false)
     private String question2;
 
-    @Getter
-    @Setter
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Getter
-    @Setter
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 

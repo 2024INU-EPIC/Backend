@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 public class QuestionPart4 {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter
+    @Setter
     @Column(name = "question_part4_id")
     private Long questionPart4Id;
 
@@ -39,13 +41,9 @@ public class QuestionPart4 {
     @Column(name = "question_10")
     private String question10;
 
-    @Getter
-    @Setter
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Getter
-    @Setter
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 

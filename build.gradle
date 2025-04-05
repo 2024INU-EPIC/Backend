@@ -34,7 +34,6 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok:1.18.20'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation group: 'com.microsoft.cognitiveservices.speech', name: 'client-sdk', version: "1.40.0", ext: "jar"
-	// implementation group: 'com.openai', name: 'openai-java', version: '0.32.0'
 	implementation group: 'com.azure', name: 'azure-ai-openai', version: '1.0.0-beta.15'
 	implementation group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: '12.10.0.jre11'
 }

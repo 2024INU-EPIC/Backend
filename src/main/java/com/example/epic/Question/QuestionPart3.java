@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 public class QuestionPart3 {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter
+    @Setter
     @Column(name = "question_part3_id")
     private Long questionPart3Id;
 
@@ -29,6 +31,8 @@ public class QuestionPart3 {
     @Column(name = "question_6")
     private String question6;
 
+    @Getter
+    @Setter
     @Column(name = "question_7")
     private String question7;
 
