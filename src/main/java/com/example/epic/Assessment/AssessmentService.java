@@ -217,8 +217,9 @@ public class AssessmentService {
      */
     private ChatRequestSystemMessage createDefaultSystemMessage() {
         return new ChatRequestSystemMessage(
-                "You are an expert English instructor. Evaluate the transcription for grammar, topic coherence, and vocabulary usage. " +
-                        "Provide scores(0~100) and detailed feedback(Korean) in JSON format with keys 'grammar', 'topic', 'vocabulary', and 'suggestions'."
+                "You are an expert English instructor. Your primary task is to evaluate the provided speech transcription for grammar, topic coherence, and vocabulary usage. " +
+                        "Provide scores (0-100) and detailed feedback in Korean in strict JSON format (without any markdown formatting or code fences) with keys 'grammar', 'topic', 'vocabulary', and 'suggestions'. " +
+                        "In addition, if an image is provided, analyze its overall context and scene to help understand the scenario, but do not let this analysis affect the primary evaluation of the transcription."
         );
     }
 
@@ -257,11 +258,17 @@ public class AssessmentService {
                     String recognizedTranscription = extractTranscriptionFromSpeechResult(speechResult);
                     List<ChatRequestMessage> messages = new ArrayList<>();
                     messages.add(createDefaultSystemMessage());
+
                     List<com.azure.ai.openai.models.ChatMessageContentItem> contentItems = new ArrayList<>();
-                    contentItems.add(new ChatMessageTextContentItem("\nTranscription: " + recognizedTranscription));
+                    // 전사 섹션 추가
+                    contentItems.add(new ChatMessageTextContentItem("=== Transcription ===\n" + recognizedTranscription));
+
+                    // 추가 컨텐츠가 있는 경우 별도의 섹션으로 추가
                     if (additionalContentItems != null && !additionalContentItems.isEmpty()) {
+                        contentItems.add(new ChatMessageTextContentItem("=== Additional Context ==="));
                         contentItems.addAll(additionalContentItems);
                     }
+
                     messages.add(new ChatRequestUserMessage(contentItems));
                     return combineEvaluations(speechResult, requestGptEvaluationAsync(messages));
                 });
