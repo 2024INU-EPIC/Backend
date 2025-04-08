@@ -59,6 +59,22 @@ public class AssessmentService {
     //========================================
 
     /**
+     * GPT 응답 문자열에서 외부 따옴표와 이스케이프 문자를 제거하여 순수한 JSON 문자열로 반환합니다.
+     */
+    private String cleanGptResponse(String response) {
+        if (response == null || response.isEmpty()) {
+            return response;
+        }
+        // 외부 따옴표가 감싸고 있다면 제거
+        if (response.startsWith("\"") && response.endsWith("\"")) {
+            response = response.substring(1, response.length() - 1);
+        }
+        // \n과 \" 등의 이스케이프 시퀀스 복원
+        response = response.replace("\\n", "\n").replace("\\\"", "\"");
+        return response;
+    }
+
+    /**
      * Azure Speech API 원시 JSON을 파싱하여 간소화된 평가 결과 ObjectNode로 반환.
      */
     private ObjectNode simplifySpeechAssessment(String speechApiRawJson) {
@@ -125,6 +141,8 @@ public class AssessmentService {
      */
     private CompletableFuture<ObjectNode> performPronunciationAssessmentAsync(String referenceScript, String audioFilePath, String failureMessage) {
         SpeechConfig speechConfig = SpeechConfig.fromSubscription(azureSpeechApiKey, azureSpeechApiRegion);
+        // 영어 발음 평가를 위해 언어 설정을 en-US로 설정
+        speechConfig.setSpeechRecognitionLanguage("en-US");
         AudioConfig audioConfig = AudioConfig.fromWavFileInput(audioFilePath);
         SpeechRecognizer recognizer = new SpeechRecognizer(speechConfig, audioConfig);
 
@@ -196,11 +214,13 @@ public class AssessmentService {
                 .toFuture()
                 .thenApply(chatCompletions -> {
                     String response = chatCompletions.getChoices().get(0).getMessage().getContent();
+                    // 후처리로 불필요한 외부 따옴표와 이스케이프 문자를 제거
+                    String cleanedResponse = cleanGptResponse(response);
                     try {
-                        return mapper.readTree(response);
+                        return mapper.readTree(cleanedResponse);
                     } catch (Exception ex) {
                         ObjectNode fallback = mapper.createObjectNode();
-                        fallback.put("rawText", response);
+                        fallback.put("rawText", cleanedResponse);
                         fallback.put("error", "Failed to parse GPT output as valid JSON");
                         return fallback;
                     }
@@ -218,8 +238,12 @@ public class AssessmentService {
     private ChatRequestSystemMessage createDefaultSystemMessage() {
         return new ChatRequestSystemMessage(
                 "You are an expert English instructor. Your primary task is to evaluate the provided speech transcription for grammar, topic coherence, and vocabulary usage. " +
-                        "Provide scores (0-100) and detailed feedback in Korean in strict JSON format (without any markdown formatting or code fences) with keys 'grammar', 'topic', 'vocabulary', and 'suggestions'. " +
-                        "In addition, if an image is provided, analyze its overall context and scene to help understand the scenario, but do not let this analysis affect the primary evaluation of the transcription."
+                        "Provide scores (0-100) for each category and deliver detailed feedback in Korean using strict JSON format (without any markdown formatting or code fences) with the following keys: " +
+                        "'grammar' (score), 'topic' (score), 'vocabulary' (score), and 'suggestions' (a detailed breakdown of feedback). " +
+                        "In the 'suggestions' field, please provide separate, clearly labeled feedback on grammar (e.g., common grammatical errors and suggestions for improvement), " +
+                        "topic coherence (e.g., clarity of ideas and logical flow), and vocabulary usage (e.g., richness and variety of vocabulary), and also include an overall summary evaluation (총평) of the user's response. " +
+                        "If an image is provided, analyze its overall context and scene to help understand the scenario but do not let this analysis affect the primary evaluation of the transcription. " +
+                        "Output only the raw JSON object without any additional text, commentary, or markdown formatting."
         );
     }
 
