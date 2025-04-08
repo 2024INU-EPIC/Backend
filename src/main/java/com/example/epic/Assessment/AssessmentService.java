@@ -59,7 +59,7 @@ public class AssessmentService {
     //========================================
 
     /**
-     * GPT 응답 문자열에서 외부 따옴표와 이스케이프 문자를 제거하여 순수한 JSON 문자열로 반환합니다.
+     * GPT 응답 문자열에서 외부 따옴표와 이스케이프 문자를 제거하여 순수한 문자열로 반환합니다.
      */
     private String cleanGptResponse(String response) {
         if (response == null || response.isEmpty()) {
@@ -71,6 +71,21 @@ public class AssessmentService {
         }
         // \n과 \" 등의 이스케이프 시퀀스 복원
         response = response.replace("\\n", "\n").replace("\\\"", "\"");
+        return response;
+    }
+
+    /**
+     * GPT의 응답 문자열에서 JSON 부분만 추출합니다.
+     */
+    private String extractJsonFromGptResponse(String response) {
+        if (response == null || response.isEmpty()) {
+            return response;
+        }
+        int jsonStart = response.indexOf("{");
+        int jsonEnd = response.lastIndexOf("}");
+        if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+            return response.substring(jsonStart, jsonEnd + 1);
+        }
         return response;
     }
 
@@ -214,13 +229,14 @@ public class AssessmentService {
                 .toFuture()
                 .thenApply(chatCompletions -> {
                     String response = chatCompletions.getChoices().get(0).getMessage().getContent();
-                    // 후처리로 불필요한 외부 따옴표와 이스케이프 문자를 제거
+                    // 기존 클리닝 및 JSON 부분만 추출
                     String cleanedResponse = cleanGptResponse(response);
+                    String jsonPart = extractJsonFromGptResponse(cleanedResponse);
                     try {
-                        return mapper.readTree(cleanedResponse);
+                        return mapper.readTree(jsonPart);
                     } catch (Exception ex) {
                         ObjectNode fallback = mapper.createObjectNode();
-                        fallback.put("rawText", cleanedResponse);
+                        fallback.put("rawText", jsonPart);
                         fallback.put("error", "Failed to parse GPT output as valid JSON");
                         return fallback;
                     }
@@ -234,6 +250,7 @@ public class AssessmentService {
 
     /**
      * 기본 시스템 메시지(역할 지시 메시지)를 생성.
+     * GPT가 추가 텍스트나 코드블럭 없이 오직 순수 JSON 객체만 반환하도록 명확한 지시를 내립니다.
      */
     private ChatRequestSystemMessage createDefaultSystemMessage() {
         return new ChatRequestSystemMessage(
