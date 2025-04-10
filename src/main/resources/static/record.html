@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <title>Assessment Full Demo</title>
+</head>
+<body>
+<h1>Assessment Full Demo</h1>
+
+<!-- Part 선택 & 문제 불러오기 -->
+<div>
+    <label>Part:</label>
+    <select id="partSelect">
+        <option value="1">Part 1</option>
+        <option value="2">Part 2</option>
+        <option value="3">Part 3</option>
+        <option value="4">Part 4</option>
+        <option value="5">Part 5</option>
+    </select>
+    <button onclick="loadQuestion()">Load Random Question</button>
+</div>
+
+<!-- 불러온 문제 표시 영역 -->
+<pre id="questionDisplay" style="background: #f0f0f0; padding: 10px; white-space: pre-wrap;"></pre>
+
+<!-- ID / No 입력: 자동 세팅되지만 직접도 수정 가능 -->
+<div>
+    <label>questionId:</label>
+    <input type="number" id="questionId"/>
+</div>
+<div>
+    <label>questionNo:</label>
+    <input type="number" id="questionNo" value="1"/>
+    <span style="font-size: 0.9em; color: #888;">(e.g. 1→question1, 2→question2 ...)</span>
+</div>
+
+<!-- 녹음 제어 -->
+<div>
+    <button onclick="startRecording()">Start Recording</button>
+    <button onclick="stopRecording()">Stop Recording</button>
+</div>
+
+<!-- 전송 버튼 -->
+<div>
+    <button onclick="submitAssessment()">Submit to Server</button>
+</div>
+
+<!-- 결과 표시 -->
+<pre id="result" style="white-space: pre-wrap; background: #eee; padding: 10px;"></pre>
+
+<script>
+    // ==============================
+    //  1. 문제 불러오기
+    // ==============================
+    function loadQuestion() {
+        const part = document.getElementById("partSelect").value;
+        fetch(`/api/focused-learning/part${part}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to load question");
+                return res.json();
+            })
+            .then(data => {
+                // 어떤 필드가 ID인지 확인 (part1→questionPart1Id, part2→questionPart2Id, etc.)
+                // 아래는 예시로 part1이면 questionPart1Id, part2면 questionPart2Id 등을 찾는 로직
+                let questionIdFieldName = `questionPart${part}Id`;
+                let questionId = data[questionIdFieldName];
+
+                // 기본적으로 questionNo는 1
+                document.getElementById("questionId").value = questionId;
+                document.getElementById("questionNo").value = 1;
+
+                // 문제 JSON 전체를 표시해준다 (예: question1, question2...)
+                document.getElementById("questionDisplay").textContent =
+                    `Loaded part${part}:\n` + JSON.stringify(data, null, 2);
+            })
+            .catch(err => {
+                document.getElementById("questionDisplay").textContent =
+                    "Error loading question: " + err;
+            });
+    }
+
+    // ==============================
+    //  2. 오디오 녹음 관련 변수/함수
+    // ==============================
+    let audioContext, inputNode, scriptProcessor, mediaStream;
+    let recordedChunks = [];
+    let totalSamples = 0;
+    let sampleRate = 44100;
+    let isRecording = false;
+
+    function startRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                audioContext = new AudioContext();
+                sampleRate = audioContext.sampleRate; // 실제 디바이스 샘플레이트
+                inputNode = audioContext.createMediaStreamSource(stream);
+                scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                scriptProcessor.onaudioprocess = e => {
+                    if (!isRecording) return;
+                    const data = e.inputBuffer.getChannelData(0);
+                    recordedChunks.push(new Float32Array(data));
+                    totalSamples += data.length;
+                };
+
+                inputNode.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+
+                mediaStream = stream;
+                recordedChunks = [];
+                totalSamples = 0;
+                isRecording = true;
+
+                document.getElementById("result").textContent = "Recording started...";
+            })
+            .catch(err => {
+                document.getElementById("result").textContent = "Mic access error: " + err;
+            });
+    }
+
+    function stopRecording() {
+        if (!isRecording) return;
+        isRecording = false;
+
+        if (scriptProcessor) {
+            scriptProcessor.disconnect();
+            scriptProcessor.onaudioprocess = null;
+        }
+        if (inputNode) {
+            inputNode.disconnect();
+        }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
+        if (audioContext) {
+            audioContext.close();
+        }
+
+        document.getElementById("result").textContent = "Recording stopped.";
+    }
+
+    // ==============================
+    //  3. 전송 (AssessmentController)
+    // ==============================
+    function submitAssessment() {
+        if (totalSamples === 0) {
+            alert("No audio recorded!");
+            return;
+        }
+
+        const part = document.getElementById("partSelect").value;
+        const questionId = document.getElementById("questionId").value;
+        const questionNo = document.getElementById("questionNo").value;
+
+        // 녹음된 Float32Array를 하나로 병합
+        const mergedBuffer = mergeBuffers(recordedChunks, totalSamples);
+        // WAV 인코딩
+        const wavBlob = encodeWAV(mergedBuffer, sampleRate);
+
+        const formData = new FormData();
+        formData.append("file", wavBlob, "recorded.wav");
+        formData.append("questionId", questionId);
+        formData.append("questionNo", questionNo);
+
+        // /api/v1/partX 로 전송
+        const url = `/api/upload-audio/part${part}`;
+
+        fetch(url, {
+            method: "POST",
+            body: formData
+        })
+            .then(res => res.text())
+            .then(result => {
+                document.getElementById("result").textContent = "Server response:\n" + result;
+            })
+            .catch(err => {
+                document.getElementById("result").textContent = "Error: " + err;
+            });
+    }
+
+    // ==============================
+    //  유틸: 버퍼 병합 + WAV 인코딩
+    // ==============================
+    function mergeBuffers(chunks, totalSamples) {
+        const result = new Float32Array(totalSamples);
+        let offset = 0;
+        for (let i = 0; i < chunks.length; i++) {
+            result.set(chunks[i], offset);
+            offset += chunks[i].length;
+        }
+        return result;
+    }
+
+    function encodeWAV(samples, sampleRate) {
+        // 16bit 모노 WAV
+        const buffer = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(buffer);
+
+        // RIFF 헤더
+        writeString(view, 0, "RIFF");
+        view.setUint32(4, 36 + samples.length * 2, true);
+        writeString(view, 8, "WAVE");
+        writeString(view, 12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, 1, true); // 채널 수 (1=mono)
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeString(view, 36, "data");
+        view.setUint32(40, samples.length * 2, true);
+
+        let offset = 44;
+        for (let i = 0; i < samples.length; i++) {
+            let s = Math.max(-1, Math.min(1, samples[i]));
+            s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            view.setInt16(offset, s, true);
+            offset += 2;
+        }
+
+        return new Blob([view], { type: "audio/wav" });
+    }
+
+    function writeString(view, offset, str) {
+        for (let i = 0; i < str.length; i++) {
+            view.setUint8(offset + i, str.charCodeAt(i));
+        }
+    }
+</script>
+</body>
+</html>
