@@ -1,17 +1,23 @@
 package com.example.epic.user;
 
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.RequiredArgsConstructor;
+
+import java.util.HashMap;
+import java.util.Map;
 
 // TODO : html에 직접 접근하는 방식에서 RESTapi 연동 방식으로 바꾸기
 
@@ -25,33 +31,45 @@ public class UserApiController {
     @Value("${jwt.secret}")
     private String secretkey;
 
-
     // 로그인
     @PostMapping("/auth/login")
-    public String login(@RequestBody @Valid UserLoginDto userLoginDto, HttpSession session) {
+    public ResponseEntity<String> login(@RequestBody @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response) {
 
         SiteUser _siteuser = userService.login(userLoginDto);
 
         // 로그인 아이디나 비밀번호가 틀린 경우 global error return
         if(_siteuser == null) {
-            return "로그인 아이디 혹은 비밀번호가 틀립니다.";
+            bindingResult.reject("loginFail,", "로그인 아이디 또는 비밀번호가 틀립니다.");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("로그인 아이디 혹은 비밀번호가 틀립니다.");
         }
 
         // 로그인 성공 => Jwt Token 발급
-
         long expireTimeMs = 1000 * 60 * 60; // Token 유효 시간 = 60분
 
         String jwtToken = JwtTokenUtil.createToken(_siteuser.getEmail(), secretkey, expireTimeMs);
-        log.info("로그인 성공 현 사용자의 로그인 토큰 : {}", jwtToken);
+        // log.info("로그인 성공 현 사용자의 로그인 토큰 : {}", jwtToken);
 
-        return jwtToken;
+        // 발급한 Jwt Token을 Cookie를 통해 전송
+        // 클라이언트는 다음 요청부터 Jwt Token이 담긴 쿠키 전송 => 이 값을 통해 인증, 인가 진행
+        Cookie cookie = new Cookie("jwtToken", jwtToken);
+        cookie.setMaxAge(60 * 60);  // 쿠키 유효 시간 : 1시간
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // 개발 중이라면 false로 테스트 가능
+        cookie.setPath("/");
+        response.addCookie(cookie);
+
+        log.info("JWT 쿠키 값 : {}", jwtToken);
+
+        response.addHeader("Authorization", "Bearer " + jwtToken);
+
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 
-    @GetMapping("/info")
-    public String userInfo(Authentication auth) {
-        SiteUser loginUser = userService.getLoginUserByEmail(auth.getName());
-
-        return String.format("Email: %s\nUsername: %s", loginUser.getEmail(), loginUser.getUsername());
+    @GetMapping("/auth/info")
+    public void userInfo(Authentication auth) {
+        String email = auth.getName(); // JWT에 담긴 email (subject)
+        SiteUser user = userService.getLoginUserByEmail(email);
+        System.out.println("jwt에 담긴 email : " + email +", db에서 꺼내온 사용자의 email" + user.getEmail());
     }
 
     // 회원가입
