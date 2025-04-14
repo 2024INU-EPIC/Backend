@@ -1,6 +1,7 @@
 package com.example.epic.user;
 
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
@@ -58,8 +60,6 @@ public class UserApiController {
         cookie.setPath("/");
         response.addCookie(cookie);
 
-        log.info("JWT 쿠키 값 : {}", jwtToken);
-
         response.addHeader("Authorization", "Bearer " + jwtToken);
 
         return ResponseEntity.status(HttpStatus.OK).build();
@@ -93,10 +93,16 @@ public class UserApiController {
     }
 
     // 로그아웃
-    /*@PostMapping("/auth/logout")
-    public String logout(@AuthenticationPrincipal UserDetails userDetails) {
-        return "";
-    }*/
+    @PostMapping("/auth/logout")
+    public ResponseEntity<String> logout(HttpServletRequest request, HttpServletResponse response) {
+        // 쿠키 파기
+        Cookie cookie = new Cookie("jwtToken", null);
+        log.info(String.valueOf(cookie));
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+
+        return ResponseEntity.status(HttpStatus.OK).body("jwt 토큰 " + request.getHeader("Cookie").substring(9) + " 는 더이상 유효하지 않음");
+    }
 
     // 대쉬보드
     /*@GetMapping("/dashboard")
