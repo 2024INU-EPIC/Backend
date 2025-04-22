@@ -222,30 +222,57 @@ public class AssessmentService {
      * GPT 평가를 위한 비동기 요청.
      */
     private CompletableFuture<JsonNode> requestGptEvaluationAsync(List<ChatRequestMessage> chatMessages) {
-        ChatCompletionsOptions options = new ChatCompletionsOptions(chatMessages);
-        options.setMaxTokens(2048);
+        return CompletableFuture.supplyAsync(() -> {
+            int maxRetries = 3;
+            int attempt = 0;
 
-        return openAIClient.getChatCompletions(openAiModelId, options)
-                .toFuture()
-                .thenApply(chatCompletions -> {
-                    String response = chatCompletions.getChoices().get(0).getMessage().getContent();
-                    // 기존 클리닝 및 JSON 부분만 추출
+            while (attempt < maxRetries) {
+                try {
+                    ChatCompletionsOptions options = new ChatCompletionsOptions(chatMessages);
+                    options.setMaxTokens(2048);
+
+                    String response = openAIClient.getChatCompletions(openAiModelId, options)
+                            .toFuture().get()  // CompletableFuture에서 blocking으로 호출
+                            .getChoices().get(0).getMessage().getContent();
+
                     String cleanedResponse = cleanGptResponse(response);
                     String jsonPart = extractJsonFromGptResponse(cleanedResponse);
-                    try {
-                        return mapper.readTree(jsonPart);
-                    } catch (Exception ex) {
-                        ObjectNode fallback = mapper.createObjectNode();
-                        fallback.put("rawText", jsonPart);
-                        fallback.put("error", "Failed to parse GPT output as valid JSON");
-                        return fallback;
+
+                    JsonNode parsed = mapper.readTree(jsonPart);
+
+                    // 유효성 검증 추가 (예: 필수 키가 없으면 실패로 간주)
+                    if (isValidGptEvaluation(parsed)) {
+                        return parsed;
+                    } else {
+                        throw new Exception("GPT 응답에 필수 키 누락: " + jsonPart);
                     }
-                })
-                .exceptionally(e -> {
-                    ObjectNode errorNode = mapper.createObjectNode();
-                    errorNode.put("error", "Error during GPT evaluation: " + e.getMessage());
-                    return errorNode;
-                });
+
+                } catch (Exception e) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        ObjectNode errorNode = mapper.createObjectNode();
+                        errorNode.put("error", "GPT evaluation failed after " + maxRetries + " attempts: " + e.getMessage());
+                        return errorNode;
+                    }
+                    try {
+                        Thread.sleep(500);  // 0.5초 딜레이 후 재시도
+                    } catch (InterruptedException ignored) {}
+                }
+            }
+
+            ObjectNode failNode = mapper.createObjectNode();
+            failNode.put("error", "GPT evaluation failed unexpectedly");
+            return failNode;
+        });
+    }
+
+    // gpt 출력의 유효성을 검사하는 메서드
+    private boolean isValidGptEvaluation(JsonNode node) {
+        return node != null &&
+                node.has("grammar") &&
+                node.has("topic") &&
+                node.has("vocabulary") &&
+                node.has("suggestions");
     }
 
     /**
@@ -253,15 +280,22 @@ public class AssessmentService {
      * GPT가 추가 텍스트나 코드블럭 없이 오직 순수 JSON 객체만 반환하도록 명확한 지시를 내립니다.
      */
     private ChatRequestSystemMessage createDefaultSystemMessage() {
-        return new ChatRequestSystemMessage(
-                "You are an expert English instructor. Your primary task is to evaluate the provided speech transcription for grammar, topic coherence, and vocabulary usage. " +
-                        "Provide scores (0-100) for each category and deliver detailed feedback in Korean using strict JSON format (without any markdown formatting or code fences) with the following keys: " +
-                        "'grammar' (score), 'topic' (score), 'vocabulary' (score), and 'suggestions' (a detailed breakdown of feedback). " +
-                        "In the 'suggestions' field, please provide separate, clearly labeled feedback on grammar (e.g., common grammatical errors and suggestions for improvement), " +
-                        "topic coherence (e.g., clarity of ideas and logical flow), and vocabulary usage (e.g., richness and variety of vocabulary), and also include an overall summary evaluation (총평) of the user's response. " +
-                        "If an image is provided, analyze its overall context and scene to help understand the scenario but do not let this analysis affect the primary evaluation of the transcription. " +
-                        "Output only the raw JSON object without any additional text, commentary, or markdown formatting."
-        );
+        String prompt = "You are an expert English instructor. Your primary task is to evaluate the provided speech transcription for grammar, topic coherence, and vocabulary usage. " +
+                "Provide scores (0-100) for each category and output a JSON object with the following structure:\n" +
+                "{\n" +
+                "  \"grammar\": <grammar score>,\n" +
+                "  \"topic\": <topic score>,\n" +
+                "  \"vocabulary\": <vocabulary score>,\n" +
+                "  \"suggestions\": {\n" +
+                "    \"grammar\": \"<detailed Korean feedback on grammar>\",\n" +
+                "    \"topic coherence\": \"<detailed Korean feedback on topic coherence>\",\n" +
+                "    \"vocabulary\": \"<detailed Korean feedback on vocabulary usage>\",\n" +
+                "    \"eval\": \"<overall summary evaluation in Korean>\"\n" +
+                "  }\n" +
+                "}\n" +
+                "If an image is provided, analyze its overall context and scene to help understand the scenario but do not let this analysis affect the primary evaluation of the transcription. " +
+                "Do not include any additional text, commentary, or markdown formatting. Only output the raw JSON object.";
+        return new ChatRequestSystemMessage(prompt);
     }
 
     /**
