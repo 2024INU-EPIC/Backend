@@ -34,10 +34,4 @@ public class UserCreateDto {
     @NotEmpty(message = "이메일은 필수항목")
     @Email
     private String email;
-
-    @Null
-    private String user_level;
-
-    @Null
-    private LocalDateTime last_tested_at;
 }

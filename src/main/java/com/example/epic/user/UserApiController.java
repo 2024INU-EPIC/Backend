@@ -6,20 +6,16 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.RequiredArgsConstructor;
-
-import java.util.HashMap;
-import java.util.Map;
 
 // TODO : html에 직접 접근하는 방식에서 RESTapi 연동 방식으로 바꾸기
 
@@ -32,6 +28,30 @@ public class UserApiController {
     private final UserService userService;
     @Value("${jwt.secret}")
     private String secretkey;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    // 회원가입
+    @PostMapping("/auth/register")
+    public ResponseEntity<?> signup(@RequestBody @Valid UserCreateDto userCreateDto) {
+        // 비밀번호와 비밀번호 확인에 입력한 값이 다른 경우 검증
+        if (!userCreateDto.getPassword1().equals(userCreateDto.getPassword2())) {
+            // 입력 검증이라서 로그 여기에 찍음
+            log.info("두 비밀번호 값 불일치");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("두 비밀번호 값 불일치");
+        }
+        // db에 해당 이메일을 사용하는 유저가 존재하는 경우 검증
+        if(userService.findSiteUser(userCreateDto.getEmail())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("해당 이메일의 유저가 이미 존재");
+        }
+
+        // 회원가입 과정
+        SiteUser created = userService.create(userCreateDto);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
 
     // 로그인
     @PostMapping("/auth/login")
@@ -65,33 +85,6 @@ public class UserApiController {
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 
-    @GetMapping("/auth/info")
-    public void userInfo(Authentication auth) {
-        String email = auth.getName(); // JWT에 담긴 email (subject)
-        SiteUser user = userService.getLoginUserByEmail(email);
-        System.out.println("jwt에 담긴 email : " + email +", db에서 꺼내온 사용자의 email" + user.getEmail());
-    }
-
-    // 회원가입
-    @PostMapping("/auth/register")
-    public ResponseEntity<?> signup(@RequestBody @Valid UserCreateDto userCreateDto) {
-        // 비밀번호와 비밀번호 확인에 입력한 값이 다른 경우 검증
-        if (!userCreateDto.getPassword1().equals(userCreateDto.getPassword2())) {
-            // 입력 검증이라서 로그 여기에 찍음
-            log.info("두 비밀번호 값 불일치");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("두 비밀번호 값 불일치");
-        }
-        // db에 해당 이메일을 사용하는 유저가 존재하는 경우 검증
-        if(userService.findSiteUser(userCreateDto.getEmail())) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("해당 이메일의 유저가 이미 존재");
-        }
-
-        // 회원가입 과정
-        SiteUser created = userService.create(userCreateDto);
-
-        return ResponseEntity.status(HttpStatus.OK).body(created);
-    }
-
     // 로그아웃
     @PostMapping("/auth/logout")
     public ResponseEntity<String> logout(HttpServletRequest request, HttpServletResponse response) {
@@ -99,9 +92,43 @@ public class UserApiController {
         Cookie cookie = new Cookie("jwtToken", null);
         log.info(String.valueOf(cookie));
         cookie.setMaxAge(0);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
         response.addCookie(cookie);
+        // 헤더에 토큰 파기
+        response.setHeader("Authorization", "");
 
         return ResponseEntity.status(HttpStatus.OK).body("jwt 토큰 " + request.getHeader("Cookie").substring(9) + " 는 더이상 유효하지 않음");
+    }
+
+    // 회원정보 수정
+    @PatchMapping("/user/{id}")
+    public ResponseEntity<String> updateUser(@RequestBody PwdUpdateDto pwdUpdateDto, @PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
+        String oldPassword = pwdUpdateDto.getOldPassword();
+        String newPassword = pwdUpdateDto.getNewPassword();
+        SiteUser updated = userService.updateUser(id, oldPassword, newPassword);
+        
+        if(updated == null) {
+            log.info("비밀번호 수정 실패");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        else {
+            log.info("비밀번호 수정 성공");
+            return ResponseEntity.status(HttpStatus.OK).build();
+        }
+    }
+
+    // 회원탈퇴
+    @DeleteMapping("/user/{id}")
+    public ResponseEntity<String> deleteUser(@PathVariable long id, HttpServletRequest request) {
+        // token이 담긴 authorizationHeader
+        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // 삭제하고자 하는 유저 조회 및 검사
+        SiteUser deleted = userService.deleteUser(id, authorizationHeader);
+        if(deleted == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("탈퇴하고자 하는 유저가 존재하지 않거나 잘못된 요청");
+        }
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     // 대쉬보드
