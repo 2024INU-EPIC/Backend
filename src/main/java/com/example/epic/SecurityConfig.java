@@ -64,7 +64,7 @@ public class SecurityConfig {
                         /*.loginPage("/api/auth/login")
                         .defaultSuccessUrl("/"))*/
                 .logout((logout) -> logout
-                        .logoutRequestMatcher(new AntPathRequestMatcher("/auth/logout"))
+                        .logoutRequestMatcher(new AntPathRequestMatcher("/api/auth/logout"))
                         .logoutSuccessUrl("/")
                         .invalidateHttpSession(true));
 

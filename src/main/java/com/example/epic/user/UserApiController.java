@@ -104,9 +104,12 @@ public class UserApiController {
     // 회원정보 수정
     @PatchMapping("/user/{id}")
     public ResponseEntity<String> updateUser(@RequestBody PwdUpdateDto pwdUpdateDto, @PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
-        String oldPassword = pwdUpdateDto.getOldPassword();
-        String newPassword = pwdUpdateDto.getNewPassword();
-        SiteUser updated = userService.updateUser(id, oldPassword, newPassword);
+        String oldPassword = pwdUpdateDto.getOldPassword(); // 이전 비밀번호
+        String newPassword = pwdUpdateDto.getNewPassword(); // 새로운 비밀번호
+        // token이 담긴 authorizationHeader
+        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // 비밀번호 업데이트
+        SiteUser updated = userService.updateUser(id, authorizationHeader, oldPassword, newPassword);
         
         if(updated == null) {
             log.info("비밀번호 수정 실패");

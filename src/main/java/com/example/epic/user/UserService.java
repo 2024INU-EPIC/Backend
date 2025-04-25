@@ -152,7 +152,7 @@ public class UserService {
         }
 
         // 토큰 유효. id 유저 존재. 토큰의 유저 존재. 이제 두 유저가 같은 유저인지 검사
-        if(deleted1 != deleted2) {
+        if(!deleted1.getId().equals(deleted2.getId())) {
             log.info("id의 유저와 token의 유저가 일치하지 않음");
             // log.info("id1 : {}, id2 : {}", deleted1.getId(), deleted2.getId());
             // log.info("email1 : {}, email2 : {}", deleted1.getEmail(), deleted2.getEmail());
@@ -165,41 +165,47 @@ public class UserService {
         return deleted1;
     }
 
-    // 유저 업데이트1
-    public SiteUser updateUser(Long id, String pwd) {
-        // db에서 유저 찾기
-        SiteUser _siteuser = userRepository.findById(id).orElse(null);
-        
-        // 유저 존재하지 않음
-        if(_siteuser == null) {
-            log.info("업데이트하고자 하는 유저가 존재하지 않음");
+    // 유저 업데이트
+    public SiteUser updateUser(long id, String authorizationHeader, String oldPassword, String newPassword) {
+        // token 추출
+        String _token = authorizationHeader.replace("Bearer ", "");
+        // 토큰 유효 확인
+        if(JwtTokenUtil.isExpired(_token, secretkey)) {
+            log.info("토큰이 만료됨");
             return null;
         }
-        // 유저 존재함
-        else {
-            // passwordEncoder.encode(pwd) 로 다시 인코딩
-            _siteuser.setPassword(passwordEncoder.encode(pwd));
-            log.info("id : {} 유저의 비밀번호 수정 성공", id);
-            return userRepository.save(_siteuser);
-        }
-    }
 
-    // 유저 업데이트2
-    public SiteUser updateUser(long id, String oldPassword, String newPassword) {
-        SiteUser _siteuser = userRepository.findById(id).orElse(null);
         // id의 유저가 db에 존재하는지 검사
-        if(_siteuser == null) {
+        SiteUser updated1 = userRepository.findById(id).orElse(null);
+        if(updated1 == null) {
             log.info("id : {} 의 사용자가 존재하지 않음", id);
             return null;
         }
-        // db에서 조회한 id의 유저의 비밀번호와 입력한 기존 비밀번호 비교
-        if(!passwordEncoder.matches(oldPassword, _siteuser.getPassword())) {
+
+        // token 주인 유저 찾기
+        // token payload의 이메일
+        String tokenEmail = JwtTokenUtil.getLoginId(_token, secretkey);
+        SiteUser updated2 = userRepository.findByEmail(tokenEmail).orElse(null);
+        if(updated2 == null) {
+            log.info("토큰에 담긴 email : {} 의 유저 존재하지 않음", tokenEmail);
+            return null;
+        }
+        // 토큰 유효. id 유저 존재. 토큰의 유저 존재. 이제 두 유저가 같은 유저인지 검사
+        if(!updated1.getId().equals(updated2.getId())) {
+            log.info("id의 유저와 token의 유저가 일치하지 않음");
+            // log.info("id1 : {}, id2 : {}", updated1.getId(), updated2.getId());
+            // log.info("email1 : {}, email2 : {}", updated1.getEmail(), updated2.getEmail());
+            return null;
+        }
+        // 토큰 유효. id 유저 존재. 토큰 주인 유저 존재. 두 유저 같음
+        // 조회한 유저의 비밀번호와 입력한 기존 비밀번호 비교
+        if(!passwordEncoder.matches(oldPassword, updated1.getPassword())) {
             log.info("입력한 비밀번호 {} 는 현재 유저의 비밀번호가 아님", oldPassword);
             return null;
         }
         // id의 유저도 존재하고 폼에서 입력한 비밀번호와 현재 유저의 비밀번호 일치 -> 비밀번호 수정
-        _siteuser.setPassword(passwordEncoder.encode(newPassword));
+        updated1.setPassword(passwordEncoder.encode(newPassword));
         log.info("id : {} 유저의 비밀번호 수정 성공", id);
-        return userRepository.save(_siteuser);
+        return userRepository.save(updated1);
     }
 }
