@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,13 +24,9 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api")
 public class UserApiController {
     @Autowired
-    private final UserService userService;
+    private UserService userService;
     @Value("${jwt.secret}")
     private String secretkey;
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
 
     // 회원가입
     @PostMapping("/auth/register")
@@ -108,8 +103,14 @@ public class UserApiController {
         String newPassword = pwdUpdateDto.getNewPassword(); // 새로운 비밀번호
         // token이 담긴 authorizationHeader
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // token 추출
+        String _token = authorizationHeader.replace("Bearer ", "");
+        // 토큰 유효 확인
+        if(JwtTokenUtil.isExpired(_token, secretkey)) {
+            return userService.handleExpiredToken(_token, response);
+        }
         // 비밀번호 업데이트
-        SiteUser updated = userService.updateUser(id, authorizationHeader, oldPassword, newPassword);
+        SiteUser updated = userService.updateUser(id, _token, oldPassword, newPassword);
         
         if(updated == null) {
             log.info("비밀번호 수정 실패");
@@ -123,17 +124,35 @@ public class UserApiController {
 
     // 회원탈퇴
     @DeleteMapping("/user/{id}")
-    public ResponseEntity<String> deleteUser(@PathVariable long id, HttpServletRequest request) {
+    public ResponseEntity<String> deleteUser(@PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
         // token이 담긴 authorizationHeader
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // token 추출
+        String _token = authorizationHeader.replace("Bearer ", "");
+        // 토큰 유효 확인
+        if(JwtTokenUtil.isExpired(_token, secretkey)) {g
+            return userService.handleExpiredToken(_token, response);
+        }
         // 삭제하고자 하는 유저 조회 및 검사
-        SiteUser deleted = userService.deleteUser(id, authorizationHeader);
+        SiteUser deleted = userService.deleteUser(id, _token);
         if(deleted == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("탈퇴하고자 하는 유저가 존재하지 않거나 잘못된 요청");
         }
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<String> getMain(@PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
+        // token이 담긴 authorizationHeader
+        String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        // token 추출
+        String _token = authorizationHeader.replace("Bearer ", "");
+        // 토큰 유효 확인
+        if(JwtTokenUtil.isExpired(_token, secretkey)) {
+            return userService.handleExpiredToken(_token, response);
+        }
+        return null;
+    }
     // 대쉬보드
     /*@GetMapping("/dashboard")
     public ResponseEntity<Optional<SiteUser>> dashboard(@AuthenticationPrincipal UserDetails userDetails) {

@@ -4,7 +4,7 @@ import com.example.epic.user.SiteUser;
 import jakarta.persistence.*;
 import lombok.*;
 
-@Entity @Table(name = "learning_statistics")
+@Entity @Table(schema = "epic", name = "learning_statistics")
 @Getter @Setter @Builder @AllArgsConstructor @NoArgsConstructor
 public class LearningStatistics {
 

@@ -1,9 +1,14 @@
 package com.example.epic.user;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -18,10 +23,10 @@ public class UserService {
     private final UserRepository userRepository;
     @Autowired
     private final PasswordEncoder passwordEncoder;
-    @Autowired
-    private final JwtTokenUtil jwtTokenUtil;
     @Value("${jwt.secret}")
     private String secretkey;
+    @Autowired
+    private JwtTokenUtil jwtTokenUtil;
     // JWT 인증 시 사용하는 메서드들
 
     /*
@@ -93,7 +98,21 @@ public class UserService {
 
         return optional_siteuser.get();
     }
+    public ResponseEntity<String> handleExpiredToken(String _token, HttpServletResponse response) {
+        // 쿠키 파기
+        Cookie cookie = new Cookie("jwtToken", null);
+        cookie.setMaxAge(0);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        response.addCookie(cookie);
+        // 헤더 토큰 파기
+        response.setHeader("Authorization", "");
+        // 메시지 작성
+        String message = "jwt 토큰 " + _token + " 는 더이상 유효하지 않음";
 
+        return ResponseEntity.status(HttpStatus.OK).body(message);
+
+    }
 // <------------------------------------------------------------------------------------------------------------------>
 
     // 회원가입 시, DB에 해당 유저 조회
@@ -127,15 +146,7 @@ public class UserService {
     }
 
     // 유저 삭제
-    public SiteUser deleteUser(Long id, String authorizationHeader) {
-        // token 추출
-        String _token = authorizationHeader.replace("Bearer ", "");
-        // 토큰 유효 확인
-        if(JwtTokenUtil.isExpired(_token, secretkey)) {
-            log.info("토큰이 만료됨");
-            return null;
-        }
-
+    public SiteUser deleteUser(Long id, String _token) {
         // URL id의 유저 찾기
         SiteUser deleted1 = userRepository.findById(id).orElse(null);
         if(deleted1 == null) {
@@ -166,22 +177,13 @@ public class UserService {
     }
 
     // 유저 업데이트
-    public SiteUser updateUser(long id, String authorizationHeader, String oldPassword, String newPassword) {
-        // token 추출
-        String _token = authorizationHeader.replace("Bearer ", "");
-        // 토큰 유효 확인
-        if(JwtTokenUtil.isExpired(_token, secretkey)) {
-            log.info("토큰이 만료됨");
-            return null;
-        }
-
+    public SiteUser updateUser(long id, String _token, String oldPassword, String newPassword) {
         // id의 유저가 db에 존재하는지 검사
         SiteUser updated1 = userRepository.findById(id).orElse(null);
         if(updated1 == null) {
             log.info("id : {} 의 사용자가 존재하지 않음", id);
             return null;
         }
-
         // token 주인 유저 찾기
         // token payload의 이메일
         String tokenEmail = JwtTokenUtil.getLoginId(_token, secretkey);
