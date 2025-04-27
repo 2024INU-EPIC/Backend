@@ -130,7 +130,7 @@ public class UserApiController {
         // token 추출
         String _token = authorizationHeader.replace("Bearer ", "");
         // 토큰 유효 확인
-        if(JwtTokenUtil.isExpired(_token, secretkey)) {g
+        if(JwtTokenUtil.isExpired(_token, secretkey)) {
             return userService.handleExpiredToken(_token, response);
         }
         // 삭제하고자 하는 유저 조회 및 검사
@@ -141,8 +141,9 @@ public class UserApiController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
+    // ap
     @GetMapping("/{id}")
-    public ResponseEntity<String> getMain(@PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> getMain(@PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
         // token이 담긴 authorizationHeader
         String authorizationHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         // token 추출
@@ -151,7 +152,11 @@ public class UserApiController {
         if(JwtTokenUtil.isExpired(_token, secretkey)) {
             return userService.handleExpiredToken(_token, response);
         }
-        return null;
+        ResponseEntity<?> mainInfo = userService.getMainInfo(id, _token);
+        if (mainInfo == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("모의고사 기록이 없거나 잘못된 요청");
+        }
+        return mainInfo;
     }
     // 대쉬보드
     /*@GetMapping("/dashboard")
@@ -163,10 +168,5 @@ public class UserApiController {
         // TODO: 받아온 정보들을 json 파일 형식으로 넘겨주기
         return ResponseEntity.ok(user);
     }
-*/
-    // TODO: /user/profile 구현하기
-    /*@GetMapping("/{id}")
-    public String userPage(@AuthenticationPrincipal UserDetails userDetails) {
-        return "user_page";
-    };*/
+    */
 }

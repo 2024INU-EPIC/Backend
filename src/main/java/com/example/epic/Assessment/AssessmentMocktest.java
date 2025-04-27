@@ -9,7 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
-@Entity @Table(name = "assessment_mocktest")
+@Entity @Table(schema = "epic", name = "assessment_mocktest")
 @Getter @Setter @Builder @AllArgsConstructor @NoArgsConstructor
 public class AssessmentMocktest {
 

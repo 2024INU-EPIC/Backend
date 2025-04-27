@@ -1,5 +1,7 @@
 package com.example.epic.user;
 
+import com.example.epic.Assessment.TestGrade;
+import com.example.epic.Assessment.TestGradeRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Optional;
 
 
@@ -23,6 +26,8 @@ public class UserService {
     private final UserRepository userRepository;
     @Autowired
     private final PasswordEncoder passwordEncoder;
+    @Autowired
+    private TestGradeRepository testGradeRepository;
     @Value("${jwt.secret}")
     private String secretkey;
     @Autowired
@@ -209,5 +214,31 @@ public class UserService {
         updated1.setPassword(passwordEncoder.encode(newPassword));
         log.info("id : {} 유저의 비밀번호 수정 성공", id);
         return userRepository.save(updated1);
+    }
+
+    public ResponseEntity<?> getMainInfo(long id, String _token) {
+        SiteUser user1 = userRepository.findById(id).orElse(null);
+        if(user1 == null) {
+            log.info("id : {} 의 유저가 존재하지 않음", id);
+            return null;
+        }
+        String email = JwtTokenUtil.getLoginId(_token, secretkey);
+        SiteUser user2 = userRepository.findByEmail(email).orElse(null);
+        if(user2 == null) {
+            log.info("email : {} 의 유저가 존재하지 않음", email);
+            return null;
+        }
+        if(user1 != user2) {
+            log.info("id의 유저와 email의 유저가 일치하지 않음");
+            return null;
+        }
+        if(user1.getUser_level() == null) {
+            log.info("유저의 모의고사 기록이 존재하지 않음");
+        }
+        HashMap<String, String> maps = new HashMap<>();
+        maps.put("name", user1.getUsername());
+        maps.put("level", user1.getUser_level());
+
+        return ResponseEntity.status(HttpStatus.OK).body(maps);
     }
 }
