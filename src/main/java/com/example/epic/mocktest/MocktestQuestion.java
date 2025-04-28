@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 public class MocktestQuestion {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Getter @Setter
     @Column(name = "mocktest_id")
     private Long id;
 
