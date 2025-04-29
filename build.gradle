@@ -22,6 +22,8 @@ dependencies {
 	// Spring Boot JPA 의존성
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	//implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	// Spring Security 관련 Thymeleaf 라이브러리 의존성
 	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'

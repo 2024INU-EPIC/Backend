@@ -5,34 +5,69 @@ import com.example.epic.user.SiteUser;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(schema = "epic", name = "mocktest_session")
+@Entity @Table(schema = "epic", name = "mocktest_session")
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class MocktestSession {
 
-    /** 클라이언트-측에서 그대로 쓰는 식별자 */
     @Id
-    @Column(name = "session_id", columnDefinition = "binary(16)")
+    @Column(name = "session_id", columnDefinition = "uniqueidentifier")
     private UUID id;
 
-    /** 로그인 유저 */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     private SiteUser user;
 
-    /** 이번 시험에 고정된 문제 세트 */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "mocktest_id", referencedColumnName = "mocktest_id")
     private MocktestQuestion mocktest;
 
-    /** 세션 완료 여부 */
-    private boolean completed;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private SessionStatus status = SessionStatus.IN_PROGRESS;
+
+    /* 문제별 평가 결과 (임시 저장) */
+    @Column(name = "assessment_question1", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion1;
+
+    @Column(name = "assessment_question2", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion2;
+
+    @Column(name = "assessment_question3", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion3;
+
+    @Column(name = "assessment_question4", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion4;
+
+    @Column(name = "assessment_question5", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion5;
+
+    @Column(name = "assessment_question6", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion6;
+
+    @Column(name = "assessment_question7", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion7;
+
+    @Column(name = "assessment_question8", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion8;
+
+    @Column(name = "assessment_question9", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion9;
+
+    @Column(name = "assessment_question10", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion10;
+
+    @Column(name = "assessment_question11", columnDefinition = "nvarchar(max)")
+    private String assessmentQuestion11;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }
