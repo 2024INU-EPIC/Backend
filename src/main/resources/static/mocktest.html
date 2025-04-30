@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mocktest Demo</title>
+</head>
+<body>
+<h1>모의고사 데모 (MocktestController)</h1>
+
+<section>
+    <h2>1. 시험 시작</h2>
+    <label>사용자 ID: <input type="number" id="userId" value="1"></label>
+    <button onclick="startMocktest()">시험 시작</button>
+    <p>sessionId: <span id="sessionIdText">없음</span></p>
+    <pre id="questionBlock"></pre>
+</section>
+
+<hr>
+
+<section>
+    <h2>2. 답안 업로드</h2>
+    <label>Part: <input type="number" id="part" value="1" min="1" max="5"></label>
+    <label>Question No: <input type="number" id="qNo" value="1" min="1" max="11"></label>
+    <input type="file" id="audioFile" accept="audio/wav">
+    <button onclick="uploadAnswer()">답안 업로드</button>
+    <pre id="uploadResult"></pre>
+</section>
+
+<hr>
+
+<section>
+    <h2>3. 시험 종료</h2>
+    <button onclick="completeMocktest()">시험 완료</button>
+    <pre id="finalResult"></pre>
+</section>
+
+<script>
+    let sessionId = null;
+
+    async function startMocktest() {
+        const userId = document.getElementById("userId").value;
+
+        const response = await fetch(`/api/mocktest/start?userId=${userId}`, {
+            method: "POST"
+        });
+
+        const data = await response.json();
+        sessionId = data.sessionId;
+        document.getElementById("sessionIdText").textContent = sessionId;
+        document.getElementById("questionBlock").textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function uploadAnswer() {
+        if (!sessionId) {
+            alert("먼저 시험을 시작하세요.");
+            return;
+        }
+
+        const part = document.getElementById("part").value;
+        const qNo = document.getElementById("qNo").value;
+        const fileInput = document.getElementById("audioFile");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("WAV 파일을 선택하세요.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("audio", file);
+
+        const response = await fetch(`/api/mocktest/${sessionId}/save/${part}/${qNo}`, {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.json();
+        document.getElementById("uploadResult").textContent = JSON.stringify(result, null, 2);
+    }
+
+    async function completeMocktest() {
+        if (!sessionId) {
+            alert("먼저 시험을 시작하세요.");
+            return;
+        }
+
+        const response = await fetch(`/api/mocktest/${sessionId}/complete`, {
+            method: "POST"
+        });
+
+        const result = await response.json();
+        document.getElementById("finalResult").textContent = JSON.stringify(result, null, 2);
+    }
+</script>
+</body>
+</html>

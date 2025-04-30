@@ -3,6 +3,8 @@ package com.example.epic.Question;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -27,12 +29,9 @@ public class QuestionPart1 {
     @Column(name = "question_2", nullable = false)
     private String question2;
 
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
     // 기본 생성자
     public QuestionPart1() {
     }

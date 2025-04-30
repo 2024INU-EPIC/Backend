@@ -5,6 +5,7 @@ import com.example.epic.user.SiteUser;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -16,6 +17,8 @@ import java.util.UUID;
 public class MocktestSession {
 
     @Id
+    @GeneratedValue(generator = "uuid2")
+    @GenericGenerator(name = "uuid2", strategy = "uuid2")
     @Column(name = "session_id", columnDefinition = "uniqueidentifier")
     private UUID id;
 
@@ -30,6 +33,9 @@ public class MocktestSession {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private SessionStatus status = SessionStatus.IN_PROGRESS;
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
 
     /* 문제별 평가 결과 (임시 저장) */
     @Column(name = "assessment_question1", columnDefinition = "nvarchar(max)")
@@ -64,10 +70,4 @@ public class MocktestSession {
 
     @Column(name = "assessment_question11", columnDefinition = "nvarchar(max)")
     private String assessmentQuestion11;
-
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 }

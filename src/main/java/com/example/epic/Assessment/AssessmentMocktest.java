@@ -51,6 +51,7 @@ public class AssessmentMocktest {
     private String q11;
 
     /* ========= 공통 ========= */
-    @CreationTimestamp private LocalDateTime createdAt;
-    @UpdateTimestamp private LocalDateTime updatedAt;
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
 }
