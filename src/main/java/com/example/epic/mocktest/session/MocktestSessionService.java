@@ -10,6 +10,7 @@ import com.example.epic.mocktest.dto.PartDto;
 import com.example.epic.mocktest.dto.TestGradeDto;
 import com.example.epic.mocktest.session.MocktestSession;
 import com.example.epic.mocktest.session.MocktestSessionRepository;
+import com.example.epic.mocktest.session.AssessmentException;
 import com.example.epic.mocktest.session.AssessmentMocktestService;
 import com.example.epic.Question.QuestionPart1;
 import com.example.epic.Question.QuestionPart2;
@@ -138,83 +139,77 @@ public class MocktestSessionService {
     /** 3) 답안 저장: 파일 → 평가 → 버퍼링 → 삭제 */
     public AssessmentResultDto saveAssessment(UUID sessionId, int part, int qNo, MultipartFile audio) {
         Path tmp = null;
+        MocktestSession session = null;
         try {
+            // ① 음성 파일 미제공 체크
+            if (audio == null || audio.isEmpty()) {
+                throw new AssessmentException("음성 파일이 제공되지 않아 시험을 종료합니다.");
+            }
+            // ② 임시 WAV 파일 생성
             tmp = Files.createTempFile("mocktest_", ".wav");
             Files.copy(audio.getInputStream(), tmp, StandardCopyOption.REPLACE_EXISTING);
 
-            MocktestSession session = sessionRepo.findById(sessionId)
-                    .orElseThrow(() -> new NoSuchElementException("Invalid session: " + sessionId));
-            MocktestQuestion mq = session.getMocktest();  // ← getMocktest()
+            // ③ 세션 조회
+            session = sessionRepo.findById(sessionId)
+                    .orElseThrow(() -> new NoSuchElementException("유효하지 않은 세션: " + sessionId));
 
-            // part, qNo 에 따라 질문 텍스트 골라내기
-            String questionText;
-            switch (part) {
-                case 1 -> {
-                    var q = mq.getPart1();
-                    questionText = (qNo == 1 ? q.getQuestion1() : q.getQuestion2());
-                }
-                case 2 -> {
-                    var q = mq.getPart2();
-                    questionText = (qNo == 3 ? q.getQuestion3() : q.getQuestion4());
-                }
-                case 3 -> {
-                    var q = mq.getPart3();
-                    questionText = switch (qNo) {
-                        case 5 -> q.getQuestion5();
-                        case 6 -> q.getQuestion6();
-                        default -> q.getQuestion7();
-                    };
-                }
-                case 4 -> {
-                    var q = mq.getPart4();
-                    questionText = switch (qNo) {
-                        case 8  -> q.getQuestion8();
-                        case 9  -> q.getQuestion9();
-                        default -> q.getQuestion10();
-                    };
-                }
-                case 5 -> {
-                    var q = mq.getPart5();
-                    questionText = q.getQuestion11();
-                }
-                default -> throw new IllegalArgumentException("Invalid part: " + part);
-            }
+            // ④ 질문 텍스트 선택
+            String questionText = selectQuestionText(session.getMocktest(), part, qNo);
 
-            // 평가 API 호출 (동기 대기)
+            // ⑤ 평가 API 호출 (동기 대기)
             String jsonResult = switch (part) {
-                case 1 -> assessmentService
-                        .evaluateSpeechPronunciationAsync(questionText, tmp.toString())
-                        .join();
-                case 2 -> assessmentService
-                        .evaluateSpeechWithQuestionImageAsync(tmp.toString(), questionText)
-                        .join();
-                case 3 -> assessmentService
-                        .evaluateSpeechWithSituationTextAsync(tmp.toString(),
-                                mq.getPart3().getSituationText(),
-                                questionText)
-                        .join();
-                case 4 -> assessmentService
-                        .evaluateSpeechWithSituationImageAsync(tmp.toString(),
-                                mq.getPart4().getSituationImage(),
-                                mq.getPart4().getSituationText(),
-                                questionText)
-                        .join();
-                case 5 -> assessmentService
-                        .evaluateSpeechWithQuestionTextAsync(tmp.toString(), questionText)
-                        .join();
-                default -> throw new IllegalStateException();
+                case 1 -> assessmentService.evaluateSpeechPronunciationAsync(questionText, tmp.toString()).join();
+                case 2 -> assessmentService.evaluateSpeechWithQuestionImageAsync(tmp.toString(), questionText).join();
+                case 3 -> assessmentService.evaluateSpeechWithSituationTextAsync(tmp.toString(),
+                        session.getMocktest().getPart3().getSituationText(), questionText).join();
+                case 4 -> assessmentService.evaluateSpeechWithSituationImageAsync(tmp.toString(),
+                        session.getMocktest().getPart4().getSituationImage(),
+                        session.getMocktest().getPart4().getSituationText(), questionText).join();
+                case 5 -> assessmentService.evaluateSpeechWithQuestionTextAsync(tmp.toString(), questionText).join();
+                default -> throw new IllegalArgumentException("Invalid part: " + part);
             };
 
+            // ⑥ 버퍼에 결과 저장
             buffer.get(sessionId).add(jsonResult);
             return new AssessmentResultDto(part, qNo, jsonResult);
 
-        } catch (IOException e) {
-            throw new RuntimeException("오디오 파일 처리 중 오류", e);
+        } catch (Exception ex) {
+            // ⑦ 오류 발생 시 세션 및 버퍼 정리
+            buffer.remove(sessionId);
+            if (session != null) {
+                sessionRepo.delete(session);
+            }
+            // ⑧ 컨트롤러에서 한 번에 처리할 수 있게 커스텀 예외 던지기
+            throw (ex instanceof AssessmentException)
+                    ? (AssessmentException) ex
+                    : new AssessmentException("평가 중 오류가 발생하여 세션을 종료합니다.", ex);
         } finally {
+            // ⑨ 임시 파일 삭제
             if (tmp != null) {
-                try { Files.deleteIfExists(tmp); } catch (IOException ignored) {}
+                try { Files.deleteIfExists(tmp); }
+                catch (IOException ignored) {}
             }
         }
+    }
+
+    // 질문 선택 메서드
+    private String selectQuestionText(MocktestQuestion mq, int part, int qNo) {
+        return switch (part) {
+            case 1 -> (qNo == 1 ? mq.getPart1().getQuestion1() : mq.getPart1().getQuestion2());
+            case 2 -> (qNo == 3 ? mq.getPart2().getQuestion3() : mq.getPart2().getQuestion4());
+            case 3 -> switch (qNo) {
+                case 5 -> mq.getPart3().getQuestion5();
+                case 6 -> mq.getPart3().getQuestion6();
+                default -> mq.getPart3().getQuestion7();
+            };
+            case 4 -> switch (qNo) {
+                case 8  -> mq.getPart4().getQuestion8();
+                case 9  -> mq.getPart4().getQuestion9();
+                default -> mq.getPart4().getQuestion10();
+            };
+            case 5 -> mq.getPart5().getQuestion11();
+            default -> throw new IllegalArgumentException("Invalid part: " + part);
+        };
     }
 
     /** 4) 시험 완료: DB 저장 + 성적 계산 + 세션·버퍼 삭제 */
@@ -236,5 +231,22 @@ public class MocktestSessionService {
         // 5. 성적 계산 및 응답 생성
         TestGradeDto grade = persistService.calculateTestGrade(assessmentId);
         return new CompletedSessionDto(sessionId, allJson, grade);
+    }
+
+    public void cancelSession(UUID sessionId) {
+        // 버퍼·DB 레코드 클리어
+        buffer.remove(sessionId);
+        sessionRepo.findById(sessionId).ifPresent(sessionRepo::delete);
+    }
+
+    @Scheduled(fixedRate = 10 * 60 * 1000)  // 10분마다 실행
+    public void cleanupStaleSessions() {
+        Instant cutoff = Instant.now().minus(Duration.ofMinutes(5));  // 5분 무응답 세션
+        List<MocktestSession> stale = sessionRepo
+                .findByStatusAndLastActivityBefore(SessionStatus.IN_PROGRESS, cutoff);
+        stale.forEach(s -> {
+            buffer.remove(s.getId());
+            sessionRepo.delete(s);
+        });
     }
 }

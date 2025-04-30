@@ -5,7 +5,7 @@
     <title>Mocktest Demo</title>
 </head>
 <body>
-<h1>모의고사 데모 (MocktestController)</h1>
+<h1>모의고사 데모</h1>
 
 <section>
     <h2>1. 시험 시작</h2>
@@ -37,13 +37,19 @@
 <script>
     let sessionId = null;
 
+    window.addEventListener('beforeunload', () => {
+        // 시험 중 창을 닫거나 뒤로가기를 누르면 세션 취소 신호 전송
+        if (sessionId) {
+            const url = `/api/mocktest/${sessionId}/cancel`;
+            navigator.sendBeacon(url);
+        }
+    });
+
     async function startMocktest() {
         const userId = document.getElementById("userId").value;
-
         const response = await fetch(`/api/mocktest/start?userId=${userId}`, {
             method: "POST"
         });
-
         const data = await response.json();
         sessionId = data.sessionId;
         document.getElementById("sessionIdText").textContent = sessionId;
@@ -55,25 +61,20 @@
             alert("먼저 시험을 시작하세요.");
             return;
         }
-
         const part = document.getElementById("part").value;
         const qNo = document.getElementById("qNo").value;
         const fileInput = document.getElementById("audioFile");
         const file = fileInput.files[0];
-
         if (!file) {
             alert("WAV 파일을 선택하세요.");
             return;
         }
-
         const formData = new FormData();
         formData.append("audio", file);
-
         const response = await fetch(`/api/mocktest/${sessionId}/save/${part}/${qNo}`, {
             method: "POST",
             body: formData
         });
-
         const result = await response.json();
         document.getElementById("uploadResult").textContent = JSON.stringify(result, null, 2);
     }
@@ -83,11 +84,9 @@
             alert("먼저 시험을 시작하세요.");
             return;
         }
-
         const response = await fetch(`/api/mocktest/${sessionId}/complete`, {
             method: "POST"
         });
-
         const result = await response.json();
         document.getElementById("finalResult").textContent = JSON.stringify(result, null, 2);
     }

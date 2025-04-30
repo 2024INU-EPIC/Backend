@@ -70,4 +70,12 @@ public class MocktestSession {
 
     @Column(name = "assessment_question11", columnDefinition = "nvarchar(max)")
     private String assessmentQuestion11;
+
+    @Column(nullable = false)
+    private Instant lastActivityAt;
+
+    @PrePersist @PreUpdate
+    public void touch() {
+        this.lastActivityAt = Instant.now();
+    }
 }
