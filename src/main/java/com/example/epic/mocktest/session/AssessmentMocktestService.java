@@ -106,9 +106,8 @@ public class AssessmentMocktestService {
         double p5 = partScore(evals.get(10));
 
         // 2-4. 최종 점수 및 등급 계산
-        double raw = ((p1 + p2 + p3 + p4) * 3 + p5 * 5) / 17.0;
-        int finalScore = (int) Math.round(raw * 2);
-        String grade     = computeGrade(finalScore);
+        int finalScore = (int) (Math.round((((p1 + p2 + p3 + p4) * 3 + p5 * 5) * 2 / 17.0) / 10.0) * 10);
+        String grade = computeGrade(finalScore);
 
         // 2-5. TestGrade 엔티티 생성 및 저장
         TestGrade tg = new TestGrade();
@@ -122,7 +121,7 @@ public class AssessmentMocktestService {
         tg.setTestGrade(finalScore+" "+grade);
         tgRepo.save(tg);
 
-        return new TestGradeDto(p1, p2, p3, p4, p5, grade);
+        return new TestGradeDto(p1, p2, p3, p4, p5, finalScore+" "+grade);
     }
 
     // — 내부 유틸 메소드들 —
