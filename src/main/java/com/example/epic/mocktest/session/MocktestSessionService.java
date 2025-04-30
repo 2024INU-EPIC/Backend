@@ -26,11 +26,14 @@ import com.example.epic.user.SiteUser;
 import com.example.epic.user.UserRepository;
 import com.example.epic.mocktest.session.SessionStatus;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -243,7 +246,7 @@ public class MocktestSessionService {
     public void cleanupStaleSessions() {
         Instant cutoff = Instant.now().minus(Duration.ofMinutes(5));  // 5분 무응답 세션
         List<MocktestSession> stale = sessionRepo
-                .findByStatusAndLastActivityBefore(SessionStatus.IN_PROGRESS, cutoff);
+                .findByStatusAndLastActivityAtBefore(SessionStatus.IN_PROGRESS, cutoff);
         stale.forEach(s -> {
             buffer.remove(s.getId());
             sessionRepo.delete(s);

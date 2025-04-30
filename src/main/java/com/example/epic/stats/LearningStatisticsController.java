@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -47,13 +48,14 @@ public class LearningStatisticsController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
-        HashMap<String, Double> parts = new HashMap<>();
-        parts.put("part1", statistics.getStatisticsPart1());
-        parts.put("part2", statistics.getStatisticsPart2());
-        parts.put("part3", statistics.getStatisticsPart3());
-        parts.put("part4", statistics.getStatisticsPart4());
-        parts.put("part5", statistics.getStatisticsPart5());
-
-        return ResponseEntity.status(HttpStatus.OK).body(parts);
+        Map<String,Object> body = new HashMap<>();
+        body.put("part1", statistics.getStatisticsPart1());
+        body.put("part2", statistics.getStatisticsPart2());
+        body.put("part3", statistics.getStatisticsPart3());
+        body.put("part4", statistics.getStatisticsPart4());
+        body.put("part5", statistics.getStatisticsPart5());
+        body.put("lastGrade", statistics.getLastGrade());
+        body.put("lastTestedAt", statistics.getLastTestedAt());
+        return ResponseEntity.ok(body);
     }
 }

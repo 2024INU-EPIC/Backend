@@ -7,6 +7,7 @@ import com.example.epic.Assessment.TestGradeRepository;
 import com.example.epic.mocktest.session.MocktestSession;
 import com.example.epic.mocktest.session.MocktestSessionRepository;
 import com.example.epic.mocktest.dto.TestGradeDto;
+import com.example.epic.stats.LearningStatisticsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -23,16 +24,19 @@ public class AssessmentMocktestService {
     private final AssessmentMocktestRepository amRepo;
     private final TestGradeRepository        tgRepo;
     private final MocktestSessionRepository  sessionRepo;
+    private final LearningStatisticsService  learningStatisticsService;
     private final ObjectMapper               mapper = new ObjectMapper();
 
     public AssessmentMocktestService(
             AssessmentMocktestRepository amRepo,
             TestGradeRepository        tgRepo,
-            MocktestSessionRepository  sessionRepo
+            MocktestSessionRepository  sessionRepo,
+            LearningStatisticsService  learningStatisticsService
     ) {
         this.amRepo       = amRepo;
         this.tgRepo       = tgRepo;
         this.sessionRepo  = sessionRepo;
+        this.learningStatisticsService = learningStatisticsService;
     }
 
     /**
@@ -73,6 +77,7 @@ public class AssessmentMocktestService {
     /**
      * 2) 방금 저장된 AssessmentMocktest ID로 점수를 계산하고,
      *    TestGrade 엔티티를 생성하여 저장한 뒤 DTO로 반환합니다.
+     *    학습 통계도 함께 업데이트합니다.
      */
     public TestGradeDto calculateTestGrade(Long assessmentId) {
         // 2-1. 저장된 평가 결과 로드
@@ -119,7 +124,11 @@ public class AssessmentMocktestService {
         tg.setPart4Grade((float)p4);
         tg.setPart5Grade((float)p5);
         tg.setTestGrade(finalScore+" "+grade);
-        tgRepo.save(tg);
+        TestGrade savedTg = tgRepo.save(tg);
+
+        //    2-6. 학습 통계 업데이트
+        //    AssessmentMocktest → SiteUser 가져와서, 저장된 TestGrade 엔티티로 반영
+        learningStatisticsService.updateStatistics(am.getUser(), savedTg);
 
         return new TestGradeDto(p1, p2, p3, p4, p5, finalScore+" "+grade);
     }
