@@ -7,6 +7,7 @@ import com.example.epic.Assessment.TestGradeRepository;
 import com.example.epic.mocktest.session.MocktestSession;
 import com.example.epic.mocktest.session.MocktestSessionRepository;
 import com.example.epic.mocktest.dto.TestGradeDto;
+import com.example.epic.mocktest.dto.TestGradeHistoryDto;
 import com.example.epic.stats.LearningStatisticsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,9 +15,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AssessmentMocktestService {
@@ -133,8 +133,55 @@ public class AssessmentMocktestService {
         return new TestGradeDto(p1, p2, p3, p4, p5, finalScore+" "+grade);
     }
 
-    // — 내부 유틸 메소드들 —
+    /**
+     * 4.1 사용자별 시험 기록 조회
+     */
+    public List<TestGradeHistoryDto> findGradesByUser(Long userId) {
+        return amRepo.findByUser_Id(userId)
+                .stream()
+                .map(am -> {
+                    // 모의고사 ID로 저장된 TestGrade 엔티티 로드
+                    TestGrade tg = tgRepo.findByAssessment(am)
+                            .orElseThrow(() -> new NoSuchElementException(
+                                    "성적이 존재하지 않습니다: assessmentId=" + am.getId()));
+                    return new TestGradeHistoryDto(
+                            tg.getId(),
+                            tg.getTestDate(),
+                            tg.getPart1Grade(),
+                            tg.getPart2Grade(),
+                            tg.getPart3Grade(),
+                            tg.getPart4Grade(),
+                            tg.getPart5Grade(),
+                            tg.getTestGrade()
+                    );
+                })
+                .collect(Collectors.toList());
+    }
 
+    /**
+     * 4.2 특정 성적 상세 조회
+     */
+    public Map<String, Object> getDetail(Long gradeId) {
+        // 1) AssessmentMocktest (Q1~Q11 원본 JSON) 로드
+        AssessmentMocktest am = amRepo.findById(gradeId)
+                .orElseThrow(() -> new NoSuchElementException("존재하지 않는 기록: " + gradeId));
+
+        // 2) TestGrade 엔티티 (점수 및 등급) 로드
+        TestGrade tg = tgRepo.findByAssessment(am)
+                .orElseThrow(() -> new NoSuchElementException(
+                        "성적 정보가 없습니다: assessmentId=" + gradeId));
+
+        // 3) 응답용 바디 구성
+        Map<String,Object> body = new HashMap<>();
+        // 원본 JSON 문자열 리스트
+        body.put("evaluations", List.of(
+                am.getQ1(), am.getQ2(), am.getQ3(), am.getQ4(), am.getQ5(),
+                am.getQ6(), am.getQ7(), am.getQ8(), am.getQ9(), am.getQ10(), am.getQ11()
+        ));
+        return body;
+    }
+
+    // — 내부 유틸 메소드들 —
     private double partScore(JsonNode eval) {
         JsonNode pron;
         JsonNode gpt = null;

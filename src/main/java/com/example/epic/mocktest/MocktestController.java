@@ -3,13 +3,17 @@ package com.example.epic.mocktest;
 import com.example.epic.mocktest.dto.AssessmentResultDto;
 import com.example.epic.mocktest.dto.CompletedSessionDto;
 import com.example.epic.mocktest.dto.MocktestPayloadDto;
+import com.example.epic.mocktest.dto.TestGradeHistoryDto;
 import com.example.epic.mocktest.session.AssessmentException;
+import com.example.epic.mocktest.session.AssessmentMocktestService;
 import com.example.epic.mocktest.session.MocktestSessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -17,9 +21,14 @@ import java.util.UUID;
 public class MocktestController {
 
     private final MocktestSessionService sessionService;
+    private final AssessmentMocktestService amService;
 
-    public MocktestController(MocktestSessionService sessionService) {
+    public MocktestController(
+            MocktestSessionService sessionService,
+            AssessmentMocktestService amService
+    ) {
         this.sessionService = sessionService;
+        this.amService      = amService;
     }
 
     /** 1) 시험 시작: 세션 생성 + 문제 묶음 반환 */
@@ -57,6 +66,20 @@ public class MocktestController {
     ) {
         CompletedSessionDto completed = sessionService.completeSession(sessionId);
         return ResponseEntity.ok(completed);
+    }
+
+    /** 4.1 시험 기록 조회 */
+    @GetMapping("/history/{userId}")
+    public ResponseEntity<List<TestGradeHistoryDto>> getHistory(@PathVariable Long userId) {
+        List<TestGradeHistoryDto> history = amService.findGradesByUser(userId);
+        return ResponseEntity.ok(history);
+    }
+
+    /** 4.2 특정 기록 상세 조회 */
+    @GetMapping("/{gradeId}/detail")
+    public ResponseEntity<Map<String,Object>> getDetail(@PathVariable Long gradeId) {
+        Map<String,Object> detail = amService.getDetail(gradeId);
+        return ResponseEntity.ok(detail);
     }
 
     @ExceptionHandler(AssessmentException.class)
