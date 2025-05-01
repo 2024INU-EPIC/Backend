@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>회원가입 데모</title>
+</head>
+<body>
+<h2>회원가입 데모</h2>
+<label>사용자 이름:
+    <input type="text" id="regUsername" placeholder="사용자 이름을 입력하세요">
+</label><br>
+<label>이메일:
+    <input type="email" id="regEmail" placeholder="you@example.com">
+</label><br>
+<label>비밀번호 (7~20자):
+    <input type="password" id="regPassword1">
+</label><br>
+<label>비밀번호 확인:
+    <input type="password" id="regPassword2">
+</label><br>
+<button onclick="doSignup()">회원가입</button>
+<pre id="signupResult"></pre>
+
+<script>
+    async function doSignup() {
+        const username  = document.getElementById('regUsername').value.trim();
+        const email     = document.getElementById('regEmail').value.trim();
+        const password1 = document.getElementById('regPassword1').value;
+        const password2 = document.getElementById('regPassword2').value;
+
+        // 클라이언트 기본 검증
+        if (!username) {
+            alert('사용자 이름을 입력하세요.');
+            return;
+        }
+        if (password1.length < 7 || password1.length > 20) {
+            alert('비밀번호는 7자 이상, 20자 이하로 입력하세요.');
+            return;
+        }
+        if (password1 !== password2) {
+            alert('비밀번호와 확인이 일치하지 않습니다.');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username,
+                    email,
+                    password1,
+                    password2
+                })
+            });
+
+            let text;
+            if (res.ok) {
+                // 201 Created
+                const user = await res.json();
+                text = '회원가입 성공!\n' + JSON.stringify(user, null, 2);
+            } else {
+                // 400 Bad Request: 검증 오류 메시지(JSON) 파싱
+                const err = await res.json();
+                // err가 배열일 수도, 객체일 수도 있으니 문자열로 변환
+                text = '실패: HTTP ' + res.status + '\n'
+                    + JSON.stringify(err, null, 2);
+            }
+            document.getElementById('signupResult').textContent = text;
+        } catch (e) {
+            document.getElementById('signupResult').textContent = '에러 발생: ' + e;
+        }
+    }
+</script>
+</body>
+</html>
