@@ -9,6 +9,8 @@ import com.example.epic.mocktest.session.MocktestSessionRepository;
 import com.example.epic.mocktest.dto.TestGradeDto;
 import com.example.epic.mocktest.dto.TestGradeHistoryDto;
 import com.example.epic.stats.LearningStatisticsService;
+import com.example.epic.user.SiteUser;
+import com.example.epic.user.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -25,18 +27,21 @@ public class AssessmentMocktestService {
     private final TestGradeRepository        tgRepo;
     private final MocktestSessionRepository  sessionRepo;
     private final LearningStatisticsService  learningStatisticsService;
+    private final UserRepository userRepo;
     private final ObjectMapper               mapper = new ObjectMapper();
 
     public AssessmentMocktestService(
             AssessmentMocktestRepository amRepo,
-            TestGradeRepository        tgRepo,
-            MocktestSessionRepository  sessionRepo,
-            LearningStatisticsService  learningStatisticsService
+            TestGradeRepository tgRepo,
+            MocktestSessionRepository sessionRepo,
+            LearningStatisticsService learningStatisticsService,
+            UserRepository userRepo
     ) {
-        this.amRepo       = amRepo;
-        this.tgRepo       = tgRepo;
-        this.sessionRepo  = sessionRepo;
+        this.amRepo = amRepo;
+        this.tgRepo = tgRepo;
+        this.sessionRepo = sessionRepo;
         this.learningStatisticsService = learningStatisticsService;
+        this.userRepo = userRepo;
     }
 
     /**
@@ -129,6 +134,12 @@ public class AssessmentMocktestService {
         //    2-6. 학습 통계 업데이트
         //    AssessmentMocktest → SiteUser 가져와서, 저장된 TestGrade 엔티티로 반영
         learningStatisticsService.updateStatistics(am.getUser(), savedTg);
+
+        // 2-7. 사용자 정보 업데이트
+        SiteUser user = am.getUser();
+        user.setUserLevel(finalScore+" "+grade);
+        user.setLastTestedAt(LocalDateTime.now());
+        userRepo.save(user);
 
         return new TestGradeDto(p1, p2, p3, p4, p5, finalScore+" "+grade);
     }

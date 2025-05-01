@@ -141,8 +141,8 @@ public class UserService {
         // passwordEncoder 객체를 생성하지 않고 빈으로 등록된 객체로부터 주입받아 사용.
         user.setPassword(passwordEncoder.encode(userCreateDto.getPassword2()));
         user.setEmail(userCreateDto.getEmail());
-        user.setUser_level(null);
-        user.setLast_tested_at(null);
+        user.setUserLevel(null);
+        user.setLastTestedAt(null);
         user.setRole(UserRole.USER);
         // 유저 생성 성공 시 로그 출력
         SiteUser created = userRepository.save(user);
@@ -232,12 +232,12 @@ public class UserService {
             log.info("id의 유저와 email의 유저가 일치하지 않음");
             return null;
         }
-        if(user1.getUser_level() == null) {
+        if(user1.getUserLevel() == null) {
             log.info("유저의 모의고사 기록이 존재하지 않음");
         }
         HashMap<String, String> maps = new HashMap<>();
         maps.put("name", user1.getUsername());
-        maps.put("level", user1.getUser_level());
+        maps.put("level", user1.getUserLevel());
 
         return ResponseEntity.status(HttpStatus.OK).body(maps);
     }
