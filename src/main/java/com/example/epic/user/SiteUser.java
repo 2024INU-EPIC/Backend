@@ -32,12 +32,11 @@ public class SiteUser {
     @Column(length = 30, nullable = false, unique = true)
     private String email;
 
-    @Column(length = 20, nullable = true)
-    private String user_level;
+    @Column(name = "user_level")
+    private String userLevel;
 
-    @DateTimeFormat(pattern = "yyyy-MM-dd hh:mm-:s")
-    @Column(nullable = true)
-    private LocalDateTime last_tested_at;
+    @Column(name = "last_tested_at")
+    private LocalDateTime lastTestedAt;
 
     // 사용자 권한 부여
     @Column(nullable = false)

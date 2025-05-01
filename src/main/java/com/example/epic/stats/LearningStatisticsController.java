@@ -49,6 +49,7 @@ public class LearningStatisticsController {
         }
 
         Map<String,Object> body = new HashMap<>();
+        body.put("username", statistics.getUser().getUsername());
         body.put("part1", statistics.getStatisticsPart1());
         body.put("part2", statistics.getStatisticsPart2());
         body.put("part3", statistics.getStatisticsPart3());
