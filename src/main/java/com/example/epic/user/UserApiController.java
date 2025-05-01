@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 
 import lombok.RequiredArgsConstructor;
 
+import java.util.HashMap;
+import java.util.Map;
+
 // TODO : html에 직접 접근하는 방식에서 RESTapi 연동 방식으로 바꾸기
 
 @Slf4j
@@ -50,7 +53,7 @@ public class UserApiController {
 
     // 로그인
     @PostMapping("/auth/login")
-    public ResponseEntity<String> login(@RequestBody @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response) {
+    public ResponseEntity<?> login(@RequestBody @Valid UserLoginDto userLoginDto, BindingResult bindingResult, HttpServletResponse response) {
 
         SiteUser _siteuser = userService.login(userLoginDto);
 
@@ -77,7 +80,10 @@ public class UserApiController {
 
         response.addHeader("Authorization", "Bearer " + jwtToken);
 
-        return ResponseEntity.status(HttpStatus.OK).build();
+        Map<String, Object> maps = new HashMap<>();
+        maps.put("userId", _siteuser.getId());
+
+        return ResponseEntity.status(HttpStatus.OK).body(maps);
     }
 
     // 로그아웃
@@ -141,7 +147,7 @@ public class UserApiController {
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    // ap
+    // 메인페이지(내 정보 조회)
     @GetMapping("/{id}")
     public ResponseEntity<?> getMain(@PathVariable long id, HttpServletRequest request, HttpServletResponse response) {
         // token이 담긴 authorizationHeader
