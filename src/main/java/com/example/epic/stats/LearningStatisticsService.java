@@ -1,7 +1,7 @@
 package com.example.epic.stats;
 
 import com.example.epic.Assessment.TestGrade;
-import com.example.epic.user.JwtTokenUtil;
+import com.example.epic.security.JwtTokenUtil;
 import com.example.epic.user.SiteUser;
 import com.example.epic.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class LearningStatisticsService {
 
     private final LearningStatisticsRepository learningStatisticsRepository;
-    private final UserRepository               userRepository;
+    private final UserRepository userRepository;
+    private final JwtTokenUtil jwtTokenUtil;
 
     @Value("${jwt.secret}")
     private String secretKey;
@@ -28,7 +29,7 @@ public class LearningStatisticsService {
             log.info("id : {} 의 유저 존재하지 않음", id);
             return null;
         }
-        String email = JwtTokenUtil.getLoginId(token, secretKey);
+        String email = jwtTokenUtil.getLoginId(token);
         SiteUser userByToken = userRepository.findByEmail(email).orElse(null);
         if (userByToken == null) {
             log.info("email : {} 의 유저 존재하지 않음", email);
@@ -67,6 +68,18 @@ public class LearningStatisticsService {
         stats.setLastTestedAt(java.time.LocalDateTime.now());
 
         learningStatisticsRepository.save(stats);
+    }
+
+    @Transactional
+    public LearningStatistics deleteStats(Long id) {
+        LearningStatistics stats = learningStatisticsRepository.findById(id).orElse(null);
+        if(stats == null) {
+            log.info("id: {} 유저의 학습 통계 존재하지 않음", id);
+            return null;
+        }
+        stats.setUser(null);
+        learningStatisticsRepository.delete(stats);
+        return stats;
     }
 
     private Double avg(Double currentAvg, Float newScore, int count) {
