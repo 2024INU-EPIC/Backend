@@ -53,9 +53,13 @@ public class MocktestController {
             @PathVariable UUID sessionId,
             @PathVariable int part,
             @PathVariable int qNo,
-            @RequestParam("audio") MultipartFile audio
+            @RequestParam(required = false) MultipartFile file
     ) {
-        AssessmentResultDto result = sessionService.saveAssessment(sessionId, part, qNo, audio);
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(null);  // 혹은 커스텀 예외 처리
+        }
+
+        AssessmentResultDto result = sessionService.saveAssessment(sessionId, part, qNo, file);
         return ResponseEntity.ok(result);
     }
 
