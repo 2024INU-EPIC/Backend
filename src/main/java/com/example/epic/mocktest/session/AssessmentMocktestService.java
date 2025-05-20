@@ -109,11 +109,11 @@ public class AssessmentMocktestService {
 
 
         // 2-3. 파트별 점수 계산
-        double p1 = average(partScore(evals.get(0)), partScore(evals.get(1)));
-        double p2 = average(partScore(evals.get(2)), partScore(evals.get(3)));
-        double p3 = average(partScore(evals.get(4)), partScore(evals.get(5)), partScore(evals.get(6)));
-        double p4 = average(partScore(evals.get(7)), partScore(evals.get(8)), partScore(evals.get(9)));
-        double p5 = partScore(evals.get(10));
+        double p1 = average(partScore(evals.get(0), 1), partScore(evals.get(1), 2));
+        double p2 = average(partScore(evals.get(2), 3), partScore(evals.get(3), 4));
+        double p3 = average(partScore(evals.get(4), 5), partScore(evals.get(5), 6), partScore(evals.get(6), 7));
+        double p4 = average(partScore(evals.get(7), 8), partScore(evals.get(8), 9), partScore(evals.get(9), 10));
+        double p5 = partScore(evals.get(10), 11);
 
         // 2-4. 최종 점수 및 등급 계산
         int finalScore = (int) (Math.round((((p1 + p2 + p3 + p4) * 3 + p5 * 5) * 2 / 17.0) / 10.0) * 10);
@@ -193,16 +193,19 @@ public class AssessmentMocktestService {
     }
 
     // — 내부 유틸 메소드들 —
-    private double partScore(JsonNode eval) {
+    private double partScore(JsonNode eval, int questionNumber) {
         JsonNode pron;
         JsonNode gpt = null;
+        String userResponse;
 
         boolean isPart1 = eval.has("PronunciationAssessment");
         if (isPart1) {
             pron = eval.get("PronunciationAssessment");
+            userResponse = eval.has("UserResponse") ? eval.get("UserResponse").asText() : "";
         } else if (eval.has("azureEvaluation") && eval.get("azureEvaluation").has("PronunciationAssessment")) {
             pron = eval.get("azureEvaluation").get("PronunciationAssessment");
-            gpt  = eval.get("gptEvaluation");
+            gpt = eval.get("gptEvaluation");
+            userResponse = eval.get("azureEvaluation").has("UserResponse") ? eval.get("azureEvaluation").get("UserResponse").asText() : "";
         } else {
             throw new IllegalArgumentException("PronunciationAssessment가 존재하지 않음");
         }
@@ -211,13 +214,66 @@ public class AssessmentMocktestService {
         double f = safeGetDouble(pron, "FluencyScore");
         double p = safeGetDouble(pron, "ProsodyScore");
 
+        double baseScore;
         if (gpt != null) {
             double gr = safeGetDouble(gpt, "grammar");
-            double t  = safeGetDouble(gpt, "topic");
-            double v  = safeGetDouble(gpt, "vocabulary");
-            return ((a + f + p) * 3 + (gr + t + v) * 2) / 15.0;
+            double t = safeGetDouble(gpt, "topic");
+            double v = safeGetDouble(gpt, "vocabulary");
+            baseScore = ((a + f + p) * 2 + (gr + t + v) * 3) / 15.0;
         } else {
-            return (a + f + p) / 3.0;
+            baseScore = (a + f + p) / 3.0;
+        }
+
+        // 사용자 발화 단어 수
+        int userResponseLength = userResponse.trim().split("\\s+").length;
+
+        if (isPart1) {
+            // 🎯 Part 1: IssueWords 기반 오류 감점
+            int issueCount = 0;
+            if (eval.has("IssueWords")) {
+                for (JsonNode word : eval.get("IssueWords")) {
+                    String errorType = word.path("ErrorType").asText("");
+                    double acc = word.path("AccuracyScore").asDouble(100.0);
+
+                    if (!"None".equals(errorType) || acc < 80.0) {
+                        issueCount++;
+                    }
+                }
+            }
+
+            // 단어 하나당 2% 감점, 최대 40%
+            double errorPenalty = Math.min(0.4, issueCount * 0.02);
+            baseScore *= (1.0 - errorPenalty);
+
+        } else {
+            // 🎯 Part 2~5: 제한 시간 기반 적정 발화 길이 비교 감점
+            int expectedLength = getExpectedWordCount(questionNumber);
+            double lengthRatio = (double) userResponseLength / expectedLength;
+
+            if (lengthRatio < 0.5) {
+                baseScore *= 0.7;
+            } else if (lengthRatio < 0.8) {
+                baseScore *= 0.85;
+            } else if (lengthRatio > 1.3) {
+                baseScore *= 0.9;
+            }
+        }
+
+        return baseScore;
+    }
+
+    private int getExpectedWordCount(int questionNumber) {
+        switch (questionNumber) {
+            case 1: case 2:
+                return 80;  // 45초
+            case 3: case 4: case 7: case 10:
+                return 50;  // 30초
+            case 5: case 6: case 8: case 9:
+                return 30;  // 15초
+            case 11:
+                return 110; // 60초
+            default:
+                return 50;  // fallback
         }
     }
 
