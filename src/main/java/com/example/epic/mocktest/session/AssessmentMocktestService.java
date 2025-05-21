@@ -4,6 +4,8 @@ import com.example.epic.Assessment.AssessmentMocktest;
 import com.example.epic.Assessment.AssessmentMocktestRepository;
 import com.example.epic.Assessment.TestGrade;
 import com.example.epic.Assessment.TestGradeRepository;
+import com.example.epic.mocktest.MocktestQuestion;
+import com.example.epic.mocktest.dto.PartDto;
 import com.example.epic.mocktest.session.MocktestSession;
 import com.example.epic.mocktest.session.MocktestSessionRepository;
 import com.example.epic.mocktest.dto.TestGradeDto;
@@ -173,22 +175,57 @@ public class AssessmentMocktestService {
      * 4.2 특정 성적 상세 조회
      */
     public Map<String, Object> getDetail(Long gradeId) {
-        // 1) AssessmentMocktest (Q1~Q11 원본 JSON) 로드
+        // 1) AssessmentMocktest 로드
         AssessmentMocktest am = amRepo.findById(gradeId)
                 .orElseThrow(() -> new NoSuchElementException("존재하지 않는 기록: " + gradeId));
 
-        // 2) TestGrade 엔티티 (점수 및 등급) 로드
+        // 2) TestGrade 로드
         TestGrade tg = tgRepo.findByAssessment(am)
-                .orElseThrow(() -> new NoSuchElementException(
-                        "성적 정보가 없습니다: assessmentId=" + gradeId));
+                .orElseThrow(() -> new NoSuchElementException("성적 정보가 없습니다: assessmentId=" + gradeId));
 
-        // 3) 응답용 바디 구성
+        MocktestQuestion mq = am.getMocktest();
+
+        // 3) 각 PartDto 구성
+        PartDto part1 = new PartDto(null, null,
+                List.of(
+                        mq.getPart1().getQuestion1(),
+                        mq.getPart1().getQuestion2()
+                )
+        );
+        PartDto part2 = new PartDto(null, null,
+                List.of(
+                        mq.getPart2().getQuestion3(),
+                        mq.getPart2().getQuestion4()
+                )
+        );
+        PartDto part3 = new PartDto(null, mq.getPart3().getSituationText(),
+                List.of(
+                        mq.getPart3().getQuestion5(),
+                        mq.getPart3().getQuestion6(),
+                        mq.getPart3().getQuestion7()
+                )
+        );
+        PartDto part4 = new PartDto(mq.getPart4().getSituationImage(), mq.getPart4().getSituationText(),
+                List.of(
+                        mq.getPart4().getQuestion8(),
+                        mq.getPart4().getQuestion9(),
+                        mq.getPart4().getQuestion10()
+                )
+        );
+        PartDto part5 = new PartDto(null, null,
+                List.of(
+                        mq.getPart5().getQuestion11()
+                )
+        );
+
+        // 4) 응답 구성
         Map<String,Object> body = new HashMap<>();
-        // 원본 JSON 문자열 리스트
+        body.put("questions", List.of(part1, part2, part3, part4, part5));
         body.put("evaluations", List.of(
                 am.getQ1(), am.getQ2(), am.getQ3(), am.getQ4(), am.getQ5(),
                 am.getQ6(), am.getQ7(), am.getQ8(), am.getQ9(), am.getQ10(), am.getQ11()
         ));
+
         return body;
     }
 
@@ -228,7 +265,7 @@ public class AssessmentMocktestService {
         int userResponseLength = userResponse.trim().split("\\s+").length;
 
         if (isPart1) {
-            // 🎯 Part 1: IssueWords 기반 오류 감점
+            // Part 1: IssueWords 기반 오류 감점
             int issueCount = 0;
             if (eval.has("IssueWords")) {
                 for (JsonNode word : eval.get("IssueWords")) {
@@ -246,7 +283,7 @@ public class AssessmentMocktestService {
             baseScore *= (1.0 - errorPenalty);
 
         } else {
-            // 🎯 Part 2~5: 제한 시간 기반 적정 발화 길이 비교 감점
+            // Part 2~5: 제한 시간 기반 적정 발화 길이 비교 감점
             int expectedLength = getExpectedWordCount(questionNumber);
             double lengthRatio = (double) userResponseLength / expectedLength;
 
