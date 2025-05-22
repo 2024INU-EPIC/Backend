@@ -26,6 +26,7 @@ import com.example.epic.user.SiteUser;
 import com.example.epic.user.UserRepository;
 import com.example.epic.mocktest.session.SessionStatus;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,6 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class MocktestSessionService {
+
+    @Value("${dev.mode}")
+    private String devMode;
 
     private final MocktestSessionRepository sessionRepo;
     private final MocktestQuestionRepository questionRepo;
@@ -82,7 +86,9 @@ public class MocktestSessionService {
     public UUID startSession(Long userId) {
         SiteUser user = userRepo.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("존재하지 않는 사용자: " + userId));
-        MocktestQuestion mq = questionRepo.findRandom();
+
+        MocktestQuestion mq = (devMode == "DEVMODE") ? questionRepo.findRandom() : questionRepo.findDevRandom();
+
         MocktestSession session = MocktestSession.builder()
                 .user(user)                      // ← userId가 아닌 user 엔티티
                 .mocktest(mq)                    // ← 필드명이 mocktest
