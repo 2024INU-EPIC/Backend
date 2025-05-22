@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>tts Demo</title>
+</head>
+<input type="text" id="textInput" placeholder="텍스트 입력">
+<button onclick="playTTS()">음성 재생</button>
+
+<script>
+    function playTTS() {
+        const text = document.getElementById("textInput").value;
+
+        fetch("/api/tts", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ text: text })
+        })
+            .then(response => response.blob())
+            .then(blob => {
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+            })
+            .catch(error => console.error("TTS error:", error));
+    }
+</script>
