@@ -61,7 +61,7 @@ public class JwtTokenUtil {
         return Jwts.builder()
                 .setClaims(claims)
                 .setIssuedAt(Date.from(Instant.now()))
-                .setExpiration(Date.from(Instant.now().plus(1, ChronoUnit.MINUTES)))
+                .setExpiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
                 .signWith(key4Al, SignatureAlgorithm.HS512)
                 .compact();
     }
@@ -74,7 +74,7 @@ public class JwtTokenUtil {
         return Jwts.builder()
                 // RefreshToken 에는 사용자 관련 정보가 필요 없음
                 .setIssuedAt(Date.from(Instant.now()))
-                .setExpiration(Date.from(Instant.now().plus(5, ChronoUnit.HOURS)))
+                .setExpiration(Date.from(Instant.now().plus(14, ChronoUnit.DAYS)))
                 .signWith(key4Al, SignatureAlgorithm.HS512)
                 .compact();
     }
