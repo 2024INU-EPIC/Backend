@@ -14,4 +14,8 @@ public interface QuestionPart2Repository extends JpaRepository<QuestionPart2, Lo
     // 기존 랜덤 조회 메서드
     @Query(value = "SELECT TOP 1 * FROM epic.question_part2 ORDER BY NEWID()", nativeQuery = true)
     QuestionPart2 getRandomQuestion();
+
+    // 시연용 랜덤 조회 메서드
+    @Query(value = "SELECT TOP 1 * FROM epic.question_part2 WHERE question_part2_id IN (5, 6, 7) ORDER BY NEWID()", nativeQuery = true)
+    QuestionPart2 getDevQuestion();
 }
